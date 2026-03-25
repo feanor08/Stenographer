@@ -1,0 +1,19 @@
+# Python
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment (created by ./install)
+app/venv/
+
+# Runtime-generated files
+app/.model_load_times.json
+app/transcriptions.txt
+app/transcriptions*.txt
+app/clips/
+
+# Staged audio inputs (copied in by the GUI before each run)
+app/input_audio/
+
+# macOS
+.DS_Store

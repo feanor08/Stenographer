@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ ! -f "$DIR/app/venv/bin/python" ]; then
+    echo "ERROR: Installation incomplete. Run ./install first." >&2
+    exit 1
+fi
+"$DIR/app/venv/bin/python" "$DIR/app/one_click_ui.py"
