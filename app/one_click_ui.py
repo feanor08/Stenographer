@@ -298,8 +298,8 @@ class TranscriberApp:
         self.out.pack(fill="x")
 
         # ── Open result button (revealed on success) ───────────────────────────
-        self._result_row = tk.Frame(self.root, bg=C["bg"], padx=24, pady=(0, 16))
-        self._result_row.pack(fill="x")
+        self._result_row = tk.Frame(self.root, bg=C["bg"], padx=24)
+        self._result_row.pack(fill="x", pady=(0, 16))
         self.open_btn = self._btn(
             self._result_row, "✅  Open Result",
             self._open_result,
@@ -362,8 +362,8 @@ class TranscriberApp:
     def _build_estimates_panel(self):
         outer = self.estimates_outer
 
-        sub = tk.Frame(outer, bg=C["bg"], padx=24, pady=(10, 0))
-        sub.pack(fill="x")
+        sub = tk.Frame(outer, bg=C["bg"], padx=24)
+        sub.pack(fill="x", pady=(10, 0))
 
         hdr_row = tk.Frame(sub, bg=C["bg"])
         hdr_row.pack(fill="x", pady=(0, 6))
@@ -481,8 +481,8 @@ class TranscriberApp:
     def _build_progress_panel(self):
         pf = self.progress_outer
 
-        prog_frame = tk.Frame(pf, bg=C["bg"], padx=24, pady=(10, 4))
-        prog_frame.pack(fill="x")
+        prog_frame = tk.Frame(pf, bg=C["bg"], padx=24)
+        prog_frame.pack(fill="x", pady=(10, 4))
 
         tk.Label(prog_frame, text="Progress",
                  font=(FONT, 9, "bold"), bg=C["bg"],
