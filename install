@@ -48,22 +48,14 @@ fi
 step "Upgrading pip..."
 "$VENV/bin/pip" install --upgrade pip || die "Could not upgrade pip."
 
-step "Installing core packages..."
+step "Installing packages..."
 "$VENV/bin/pip" install \
     "click>=8.1.7" \
     "faster-whisper>=1.0.0" \
     "rich>=13.7.0" \
     "typer>=0.12.0" \
-    || die "Core package install failed — see error above."
-ok "Core packages installed"
-
-step "Installing whisperx (optional — may take a while)..."
-if "$VENV/bin/pip" install "whisperx>=3.1.1"; then
-    ok "whisperx installed"
-else
-    warn "whisperx install failed — skipping (it is optional)."
-    echo -e "  ${DIM}The app still works without it using faster-whisper.${NC}"
-fi
+    || die "Package install failed — see error above."
+ok "Packages installed"
 
 # ── 4. ffmpeg ──────────────────────────────────────────────────────────────────
 step "Checking ffmpeg..."

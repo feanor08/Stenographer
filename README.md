@@ -24,7 +24,7 @@ There are 3 steps to get it running. You only do steps 1 and 2 **once, ever**.
 
 FFmpeg is a free tool that helps read audio files. You just need to install it once.
 
-**On a Mac:**
+**🍎 On a Mac:**
 
 1. Open **Terminal** (press `⌘ + Space`, type "Terminal", hit Enter)
 2. Paste this and hit Enter:
@@ -36,26 +36,52 @@ FFmpeg is a free tool that helps read audio files. You just need to install it o
    > /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    > ```
 
-**On Linux (Ubuntu/Debian):**
+**🪟 On Windows:**
+
+1. Go to [ffmpeg.org/download.html](https://ffmpeg.org/download.html) and download the Windows build
+2. Unzip it somewhere easy to find (e.g. `C:\ffmpeg`)
+3. Add it to your PATH:
+   - Search for **"Edit the system environment variables"** in the Start menu
+   - Click **Environment Variables** → find **Path** → click **Edit**
+   - Click **New** and add the path to the `bin` folder inside ffmpeg (e.g. `C:\ffmpeg\bin`)
+   - Click OK on everything and restart any open windows
+
+**🐧 On Linux (Ubuntu/Debian):**
 ```
 sudo apt install ffmpeg
 ```
 
 ---
 
-### Step 2 — Run the installer
+### Step 2 — Install Python (Windows only)
 
-1. Unzip the downloaded folder
-2. Open **Terminal** and drag the folder into it (this sets the path automatically)
-3. Type `./install` and hit Enter
+Mac and Linux come with Python. On Windows:
 
-This sets everything up. You'll see some text scroll by — that's normal. Wait for it to finish.
+1. Go to [python.org/downloads](https://www.python.org/downloads/) and download Python 3
+2. Run the installer — **make sure to tick "Add Python to PATH"** before clicking Install
 
 ---
 
-### Step 3 — Open the app
+### Step 3 — Run the installer
 
-Double-click the **`transcribe`** file in the folder, or type `./transcribe` in Terminal.
+**🍎 Mac / 🐧 Linux:**
+1. Unzip the downloaded folder
+2. Open **Terminal** and drag the folder into it
+3. Type `./install` and hit Enter
+
+**🪟 Windows:**
+1. Unzip the downloaded folder
+2. Double-click **`install.bat`**
+
+You'll see some text scroll by — that's normal. Wait for it to finish.
+
+---
+
+### Step 4 — Open the app
+
+**🍎 Mac / 🐧 Linux:** Double-click **`transcribe`** or type `./transcribe` in Terminal
+
+**🪟 Windows:** Double-click **`transcribe.bat`**
 
 A window will pop up and you're ready to go! ✅
 

@@ -32,7 +32,11 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 from shared import MODEL_INFO, MODEL_ORDER, fmt_dur, fmt_clock
 
 PROJECT_DIR = Path(__file__).parent
-PYTHON      = PROJECT_DIR / "venv" / "bin" / "python"
+PYTHON      = (
+    PROJECT_DIR / "venv" / "Scripts" / "python.exe"
+    if platform.system() == "Windows"
+    else PROJECT_DIR / "venv" / "bin" / "python"
+)
 SCRIPT      = PROJECT_DIR / "transcribe.py"
 
 MODELS    = MODEL_ORDER
@@ -714,19 +718,27 @@ class TranscriberApp:
             self._open_result()  # auto-open the file
 
     def _show_in_finder(self):
-        if self._output_files:
-            subprocess.run(["open", "-R", self._output_files[0]])
-        else:
+        if not self._output_files:
             messagebox.showerror("Not found", "Output path was not captured.")
+            return
+        path = self._output_files[0]
+        if platform.system() == "Windows":
+            subprocess.run(["explorer", "/select,", path])
+        else:
+            subprocess.run(["open", "-R", path])
 
     def _open_result(self):
-        if self._output_files:
-            subprocess.run(["open", self._output_files[0]])
-        else:
+        if not self._output_files:
             messagebox.showerror(
                 "File not found",
                 "Output file path was not captured.\nCheck the console log above.",
             )
+            return
+        path = self._output_files[0]
+        if platform.system() == "Windows":
+            os.startfile(path)
+        else:
+            subprocess.run(["open", path])
 
 
 def main():
