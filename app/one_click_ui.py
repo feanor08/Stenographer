@@ -52,7 +52,7 @@ C = {
     "text_hi":      "#0F172A",  # emphasis
     "accent":       "#3B82F6",  # blue accent
     "accent_hov":   "#2563EB",  # darker blue on hover
-    "accent_fg":    "#FFFFFF",  # text on accent background
+    "accent_fg":    "#000000",  # text on accent background
     "success":      "#16A34A",  # green
     "success_light":"#DCFCE7",  # light green background
     "error":        "#DC2626",  # red
