@@ -64,13 +64,23 @@ Mac and Linux come with Python. On Windows:
 
 ### Step 3 — Run the installer
 
-**🍎 Mac / 🐧 Linux:**
+**🍎 Mac:**
+1. Unzip the downloaded folder
+2. **Right-click** `install.command` → click **Open**
+3. A warning will pop up saying Apple can't verify the developer — click **Open** (or **Open Anyway**)
+
+> ⚠️ **Why the warning?** Mac blocks scripts downloaded from the internet by default. Right-clicking and choosing Open lets you bypass this — it's a one-time thing.
+>
+> If you don't see an "Open" option in the warning, go to **System Settings → Privacy & Security** and click **"Open Anyway"** near the bottom.
+
+**🐧 Linux:**
 1. Unzip the downloaded folder
 2. Double-click **`install.command`**
 
 **🪟 Windows:**
 1. Unzip the downloaded folder
 2. Double-click **`install.bat`**
+3. If Windows SmartScreen appears, click **"More info"** → **"Run anyway"**
 
 You'll see some text scroll by — that's normal. Wait for it to finish.
 
@@ -78,11 +88,15 @@ You'll see some text scroll by — that's normal. Wait for it to finish.
 
 ### Step 4 — Open the app
 
-**🍎 Mac / 🐧 Linux:** Double-click **`transcribe.command`**
+**🍎 Mac:** Right-click **`transcribe.command`** → **Open** (same one-time step as above)
+
+**🐧 Linux:** Double-click **`transcribe.command`**
 
 **🪟 Windows:** Double-click **`transcribe.bat`**
 
 A window will pop up and you're ready to go! ✅
+
+> 💡 After the first time, you can just double-click normally — the warning only appears once.
 
 ---
 
