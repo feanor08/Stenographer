@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-One-click GUI for Audio Transcriber — 8-bit Retro Edition.
+One-click GUI for Audio Transcriber.
 
 Architecture
 ------------
@@ -18,6 +18,7 @@ Thread inventory
   main thread     — _poll() drains the queue and updates widgets safely
 """
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -40,28 +41,45 @@ SCRIPT      = PROJECT_DIR / "transcribe.py"
 MODELS    = MODEL_ORDER
 LANGUAGES = ["auto", "en", "hi", "ta", "fr", "es", "de", "zh", "ja", "ko", "ar", "pt", "ru"]
 
-# ── Palette: #FF0000  #CC0000  #3B4CCA  #FFDE00  #B3A125 ─────────────────────────
+# ── Colour palette ─────────────────────────────────────────────────────────────
 C = {
-    "bg":       "#0e0e2e",  # dark indigo body (derived from #3B4CCA)
-    "bg_dark":  "#07071a",  # deepest background
-    "bg_card":  "#16163e",  # slightly lighter indigo card
-    "fg":       "#FFDE00",  # Pokémon yellow — primary text
-    "fg_dim":   "#B3A125",  # dark gold — secondary / muted
-    "fg_hi":    "#fff59d",  # bright near-white yellow for emphasis
-    "yellow":   "#FFDE00",
-    "amber":    "#B3A125",
-    "blue":     "#3B4CCA",
-    "red":      "#FF0000",
-    "dark_red": "#CC0000",
-    "white":    "#fff9c4",
-    "border":   "#3B4CCA",  # Pokémon blue borders
-    "hdr_bg":   "#CC0000",  # Pokéball red header
-    "btn_bg":   "#CC0000",  # Pokéball red button
-    "btn_act":  "#FF0000",  # bright red on hover
-    "sel_bg":   "#3B4CCA",  # blue selected row
+    "bg":           "#F8FAFC",  # page background
+    "bg_card":      "#FFFFFF",  # card / panel surface
+    "bg_input":     "#F1F5F9",  # terminal / input background
+    "border":       "#E2E8F0",  # default border
+    "text":         "#1E293B",  # primary text
+    "text_muted":   "#64748B",  # secondary / label text
+    "text_hi":      "#0F172A",  # emphasis
+    "accent":       "#3B82F6",  # blue accent
+    "accent_hov":   "#2563EB",  # darker blue on hover
+    "accent_fg":    "#FFFFFF",  # text on accent background
+    "success":      "#16A34A",  # green
+    "success_light":"#DCFCE7",  # light green background
+    "error":        "#DC2626",  # red
+    "bar_track":    "#E2E8F0",  # progress bar track
+    "sel_bg":       "#EFF6FF",  # hovered / selected row
 }
 
-FONT = "Courier"          # The OG monospace
+# Accuracy badge colours (readable on white)
+ACC_COLORS = {
+    "tiny":     "#DC2626",  # red
+    "base":     "#EA580C",  # orange
+    "small":    "#CA8A04",  # amber
+    "medium":   "#16A34A",  # green
+    "large-v3": "#2563EB",  # blue
+}
+
+# Platform-appropriate fonts
+_sys = platform.system()
+if _sys == "Darwin":
+    FONT = "SF Pro Display"
+    MONO = "SF Mono"
+elif _sys == "Windows":
+    FONT = "Segoe UI"
+    MONO = "Consolas"
+else:
+    FONT = "DejaVu Sans"
+    MONO = "DejaVu Sans Mono"
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[()][AB]")
 
@@ -83,15 +101,14 @@ def get_audio_duration(path: str) -> float:
         return 0.0
 
 
-# ── Custom pixel-block progress bar ───────────────────────────────────────────
-class PixelBar(tk.Canvas):
-    """An 8-bit style progress bar drawn with filled blocks."""
+# ── Flat progress bar ──────────────────────────────────────────────────────────
+class SmoothBar(tk.Canvas):
+    """A clean, flat progress bar."""
 
     def __init__(self, parent, **kw):
         kw.setdefault("bg", C["bg_card"])
-        kw.setdefault("highlightthickness", 2)
-        kw.setdefault("highlightbackground", C["border"])
-        kw.setdefault("height", 26)
+        kw.setdefault("highlightthickness", 0)
+        kw.setdefault("height", 6)
         super().__init__(parent, **kw)
         self._pct = 0.0
         self.bind("<Configure>", lambda _e: self._draw())
@@ -106,117 +123,76 @@ class PixelBar(tk.Canvas):
         H = self.winfo_height()
         if W < 4 or H < 4:
             return
-        pad = 3
-        inner_w = W - pad * 2
-        fill_w  = int(inner_w * self._pct / 100)
-
-        # Full trough first; blocks paint over it
-        self.create_rectangle(pad, pad, W - pad, H - pad,
-                               fill=C["bg_dark"], outline="")
-
-        # Filled section — drawn as discrete pixel blocks separated by gaps.
-        # Each loop iteration advances by (block + gap) pixels regardless of
-        # whether the block was clipped at the fill edge, so the gap pattern
-        # stays uniform and doesn't bunch up at the leading edge.
-        block = 10
-        gap   = 2
-        x = pad
-        filled_so_far = 0
-        while filled_so_far < fill_w:
-            bw = min(block, fill_w - filled_so_far)
-            # Last block gets the brighter highlight colour for a "leading edge" effect
-            colour = C["fg"] if filled_so_far < fill_w - block else C["fg_hi"]
-            self.create_rectangle(x, pad + 2, x + bw, H - pad - 2,
-                                   fill=colour, outline="")
-            x            += block + gap
-            filled_so_far += block + gap
-
-        # Scanline overlay — stipple draws every other pixel transparent,
-        # so the bg_dark shows through on alternate rows like a CRT scanline
-        for y in range(pad + 2, H - pad - 2, 2):
-            self.create_line(pad, y, min(pad + fill_w, W - pad), y,
-                              fill=C["bg_dark"], stipple="gray50")
-
-        # Percentage label — flips to dark text once the bar passes the centre
-        # so it stays readable against both the filled and unfilled sections
-        label_x = W // 2
-        txt_col = C["bg"] if self._pct > 56 else C["fg"]
-        self.create_text(label_x, H // 2, text=f" {int(self._pct)}% ",
-                          fill=txt_col, font=(FONT, 10, "bold"))
+        # Track
+        self.create_rectangle(0, 0, W, H, fill=C["bar_track"], outline="")
+        # Fill
+        fill_w = max(0, int(W * self._pct / 100))
+        if fill_w > 0:
+            colour = C["success"] if self._pct >= 100 else C["accent"]
+            self.create_rectangle(0, 0, fill_w, H, fill=colour, outline="")
 
 
-# ── Retro-styled combobox helper ───────────────────────────────────────────────
-def _apply_retro_style():
-    """
-    Patch the ttk theme for comboboxes and other shared widgets.
-
-    We force the "default" theme first because themed engines like
-    "aqua" (macOS) ignore many configure() keys, making the combobox
-    look system-native instead of retro.  The try/except is a no-op
-    fallback if the theme switch fails on an unusual platform.
-    """
+# ── ttk style ──────────────────────────────────────────────────────────────────
+def _apply_style():
     style = ttk.Style()
     try:
         style.theme_use("default")
     except Exception:
         pass
-    style.configure("Retro.TCombobox",
-                    fieldbackground=C["bg_card"],
-                    background=C["btn_bg"],
-                    foreground=C["fg"],
-                    selectbackground=C["sel_bg"],
-                    selectforeground=C["fg"],
-                    insertcolor=C["fg"],
-                    arrowcolor=C["fg"],
-                    bordercolor=C["border"],
-                    lightcolor=C["border"],
-                    darkcolor=C["border"],
-                    relief="flat",
-                    font=(FONT, 11))
-    style.map("Retro.TCombobox",
-              fieldbackground=[("readonly", C["bg_card"])],
-              foreground=[("readonly", C["fg"])],
-              background=[("active", C["btn_act"])])
+    style.configure(
+        "App.TCombobox",
+        fieldbackground=C["bg_card"],
+        background=C["bg_card"],
+        foreground=C["text"],
+        selectbackground=C["sel_bg"],
+        selectforeground=C["text"],
+        insertcolor=C["text"],
+        arrowcolor=C["text_muted"],
+        bordercolor=C["border"],
+        lightcolor=C["border"],
+        darkcolor=C["border"],
+        relief="flat",
+        font=(FONT, 11),
+    )
+    style.map(
+        "App.TCombobox",
+        fieldbackground=[("readonly", C["bg_card"])],
+        foreground=[("readonly", C["text"])],
+        bordercolor=[("focus", C["accent"])],
+        background=[("active", C["sel_bg"])],
+    )
 
 
 # ── Main app ───────────────────────────────────────────────────────────────────
 class TranscriberApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("► AUDIO TRANSCRIBER ◄")
+        self.root.title("Audio Transcriber")
         self.root.configure(bg=C["bg"])
         self.root.resizable(True, False)
 
         self.selected_files: List[str] = []
-        self.q: queue.Queue = queue.Queue()  # cross-thread message bus
+        self.q: queue.Queue = queue.Queue()
         self.total_audio_seconds: float = 0.0
-        self.transcription_start: Optional[float] = None  # wall time, set when _run() fires
+        self.transcription_start: Optional[float] = None
         self.estimated_total_s: float = 0.0
-        # after() callback IDs — stored so we can cancel them on window close
-        self._tick_id: Optional[str] = None
-        self._blink_id: Optional[str] = None
-        self._poll_id: Optional[str] = None
-        self._blink_on = True
-        self._proc: Optional[subprocess.Popen] = None  # ref to live subprocess for termination
+        self._tick_id:  Optional[str] = None
+        self._poll_id:  Optional[str] = None
+        self._proc: Optional[subprocess.Popen] = None
 
-        _apply_retro_style()
+        _apply_style()
         self._build_ui()
         self._poll()
-        self._blink()
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _on_close(self):
-        """Cancel all pending callbacks and kill any running subprocess."""
         if self._poll_id:
             self.root.after_cancel(self._poll_id)
             self._poll_id = None
         if self._tick_id:
             self.root.after_cancel(self._tick_id)
             self._tick_id = None
-        if self._blink_id:
-            self.root.after_cancel(self._blink_id)
-            self._blink_id = None
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
         self.root.destroy()
@@ -225,227 +201,225 @@ class TranscriberApp:
 
     def _build_ui(self):
         # ── Header ────────────────────────────────────────────────────────────
-        hdr = tk.Frame(self.root, bg=C["hdr_bg"], pady=0)
+        hdr = tk.Frame(self.root, bg=C["bg_card"])
         hdr.pack(fill="x")
 
-        # Top scanline strip
-        tk.Frame(hdr, bg=C["fg_dim"], height=2).pack(fill="x")
+        hdr_inner = tk.Frame(hdr, bg=C["bg_card"], padx=24, pady=20)
+        hdr_inner.pack(fill="x")
 
-        inner_hdr = tk.Frame(hdr, bg=C["hdr_bg"], pady=14)
-        inner_hdr.pack(fill="x")
+        tk.Label(hdr_inner, text="Audio Transcriber",
+                 font=(FONT, 20, "bold"), bg=C["bg_card"],
+                 fg=C["text_hi"]).pack(anchor="w")
+        tk.Label(hdr_inner,
+                 text="Convert audio to text — runs entirely on your computer",
+                 font=(FONT, 11), bg=C["bg_card"],
+                 fg=C["text_muted"]).pack(anchor="w", pady=(3, 0))
 
-        # Blinking cursor label stored for animation
-        title_row = tk.Frame(inner_hdr, bg=C["hdr_bg"])
-        title_row.pack()
-        tk.Label(title_row, text="► AUDIO TRANSCRIBER ◄",
-                 font=(FONT, 24, "bold"), bg=C["hdr_bg"], fg=C["fg"]).pack(side="left")
-        self.cursor_lbl = tk.Label(title_row, text="█",
-                                    font=(FONT, 24, "bold"), bg=C["hdr_bg"], fg=C["fg"])
-        self.cursor_lbl.pack(side="left", padx=(4, 0))
+        tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x")
 
-        tk.Label(inner_hdr,
-                 text="SELECT FILES  ·  PICK MODEL  ·  HIT TRANSCRIBE",
-                 font=(FONT, 10), bg=C["hdr_bg"], fg=C["fg_dim"]).pack(pady=(2, 0))
+        # ── File picker ────────────────────────────────────────────────────────
+        file_section = self._card(self.root, title="Audio Files")
 
-        # Bottom scanline strip
-        tk.Frame(hdr, bg=C["fg_dim"], height=2).pack(fill="x")
+        file_row = tk.Frame(file_section, bg=C["bg_card"])
+        file_row.pack(fill="x", padx=16, pady=(4, 14))
 
-        # ── File picker row ────────────────────────────────────────────────────
-        file_card = self._card(self.root)
-        file_card.pack(fill="x", padx=14, pady=(12, 4))
+        self._btn(file_row, "📂  Choose Files", self._browse).pack(side="left")
 
-        file_inner = tk.Frame(file_card, bg=C["bg_card"])
-        file_inner.pack(fill="x", padx=10, pady=8)
+        self.file_label = tk.Label(
+            file_row, text="No files selected",
+            fg=C["text_muted"], bg=C["bg_card"],
+            font=(FONT, 11), anchor="w",
+        )
+        self.file_label.pack(side="left", padx=12)
 
-        self._retro_button(file_inner, "[ 📂 CHOOSE FILES ]",
-                           self._browse, bg=C["btn_bg"], fg=C["fg"],
-                           active_bg=C["btn_act"], active_fg=C["fg"],
-                           width=20).pack(side="left")
+        # ── Options ────────────────────────────────────────────────────────────
+        opt_section = self._card(self.root, title="Settings")
 
-        self.file_label = tk.Label(file_inner, text="NO FILES SELECTED",
-                                    fg=C["fg_dim"], bg=C["bg_card"],
-                                    font=(FONT, 11), anchor="w")
-        self.file_label.pack(side="left", padx=14)
+        opt_row = tk.Frame(opt_section, bg=C["bg_card"])
+        opt_row.pack(fill="x", padx=16, pady=(4, 14))
 
-        # ── Options row ───────────────────────────────────────────────────────
-        opt_card = self._card(self.root)
-        opt_card.pack(fill="x", padx=14, pady=4)
-
-        opt_inner = tk.Frame(opt_card, bg=C["bg_card"])
-        opt_inner.pack(fill="x", padx=10, pady=8)
-
-        tk.Label(opt_inner, text="MODEL:", fg=C["fg_dim"], bg=C["bg_card"],
-                 font=(FONT, 11, "bold")).pack(side="left")
+        tk.Label(opt_row, text="Model", fg=C["text_muted"], bg=C["bg_card"],
+                 font=(FONT, 11)).pack(side="left")
         self.model_var = tk.StringVar(value="medium")
-        model_cb = ttk.Combobox(opt_inner, textvariable=self.model_var,
-                                 values=MODELS, state="readonly", width=11,
-                                 style="Retro.TCombobox")
-        model_cb.pack(side="left", padx=(6, 28))
+        model_cb = ttk.Combobox(opt_row, textvariable=self.model_var,
+                                 values=MODELS, state="readonly", width=12,
+                                 style="App.TCombobox")
+        model_cb.pack(side="left", padx=(8, 28))
         model_cb.bind("<<ComboboxSelected>>", lambda _e: self._refresh_estimates())
 
-        tk.Label(opt_inner, text="LANGUAGE:", fg=C["fg_dim"], bg=C["bg_card"],
-                 font=(FONT, 11, "bold")).pack(side="left")
+        tk.Label(opt_row, text="Language", fg=C["text_muted"], bg=C["bg_card"],
+                 font=(FONT, 11)).pack(side="left")
         self.lang_var = tk.StringVar(value="auto")
-        ttk.Combobox(opt_inner, textvariable=self.lang_var,
-                     values=LANGUAGES, state="readonly", width=8,
-                     style="Retro.TCombobox").pack(side="left", padx=(6, 0))
+        ttk.Combobox(opt_row, textvariable=self.lang_var,
+                     values=LANGUAGES, state="readonly", width=9,
+                     style="App.TCombobox").pack(side="left", padx=(8, 0))
 
-        # ── Estimates panel (hidden until files selected) ──────────────────────
+        # ── Estimates panel (revealed when files are selected) ─────────────────
         self.estimates_outer = tk.Frame(self.root, bg=C["bg"])
         self._build_estimates_panel()
 
-        # ── Progress panel (hidden until transcription runs) ───────────────────
+        # ── Progress panel (revealed when transcription starts) ────────────────
         self.progress_outer = tk.Frame(self.root, bg=C["bg"])
         self._build_progress_panel()
 
         # ── Transcribe button ──────────────────────────────────────────────────
-        self.btn_row = tk.Frame(self.root, bg=C["bg"], pady=12)
-        self.btn_row.pack()
-        self.run_btn = self._retro_button(
-            self.btn_row,
-            "[ ▶  TRANSCRIBE ]",
+        self.btn_row = tk.Frame(self.root, bg=C["bg"], padx=24, pady=12)
+        self.btn_row.pack(fill="x")
+
+        self.run_btn = self._btn(
+            self.btn_row, "Transcribe",
             self._run,
-            font=(FONT, 16, "bold"),
-            fg=C["fg"],
-            bg=C["btn_bg"],
-            active_bg=C["btn_act"],
-            active_fg=C["fg"],
-            width=22,
+            font=(FONT, 13, "bold"),
             pady=10,
+            width=20,
+            primary=True,
         )
         self.run_btn.pack()
 
-        # ── Live output terminal ───────────────────────────────────────────────
-        term_card = self._card(self.root)
-        term_card.pack(fill="x", padx=14, pady=(4, 4))
+        tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x", pady=(4, 0))
 
-        tk.Label(term_card, text=" CONSOLE OUTPUT ",
-                 font=(FONT, 9, "bold"), bg=C["border"], fg=C["bg"]).pack(anchor="w")
+        # ── Console ────────────────────────────────────────────────────────────
+        log_frame = tk.Frame(self.root, bg=C["bg"], padx=24, pady=16)
+        log_frame.pack(fill="x")
+
+        tk.Label(log_frame, text="Console Output",
+                 font=(FONT, 10, "bold"), bg=C["bg"],
+                 fg=C["text_muted"]).pack(anchor="w", pady=(0, 6))
 
         self.out = scrolledtext.ScrolledText(
-            term_card, width=72, height=16, state="disabled",
-            bg=C["bg_dark"], fg=C["fg"], font=(FONT, 10),
-            relief="flat", insertbackground=C["fg"],
-            wrap="word", selectbackground=C["sel_bg"],
-            selectforeground=C["fg_hi"],
+            log_frame, width=72, height=14, state="disabled",
+            bg=C["bg_input"], fg=C["text"], font=(MONO, 10),
+            relief="flat", bd=1,
+            insertbackground=C["text"],
+            wrap="word",
+            selectbackground=C["sel_bg"],
+            selectforeground=C["text"],
         )
-        self.out.pack(padx=2, pady=(0, 2))
+        self.out.pack(fill="x")
 
-        # ── Open result button (hidden until success) ──────────────────────────
-        self.open_btn = self._retro_button(
-            self.root, "[ ✅  OPEN RESULT ]",
+        # ── Open result button (revealed on success) ───────────────────────────
+        self._result_row = tk.Frame(self.root, bg=C["bg"], padx=24, pady=(0, 16))
+        self._result_row.pack(fill="x")
+        self.open_btn = self._btn(
+            self._result_row, "✅  Open Result",
             self._open_result,
-            font=(FONT, 13, "bold"),
-            fg=C["bg"], bg=C["fg"],
-            active_bg=C["fg_hi"], active_fg=C["bg"],
-            width=22, pady=8,
+            font=(FONT, 12),
+            pady=8,
+            width=18,
+            success=True,
         )
 
         self.root.update()
         self.root.minsize(self.root.winfo_width(), self.root.winfo_height())
 
-    # ── Reusable widget helpers ────────────────────────────────────────────────
+    # ── Widget helpers ─────────────────────────────────────────────────────────
 
-    def _card(self, parent) -> tk.Frame:
-        """
-        A bordered card frame.
+    def _card(self, parent, title: str) -> tk.Frame:
+        """White card with a muted section title. Returns the inner frame."""
+        wrapper = tk.Frame(parent, bg=C["bg"], padx=24, pady=0)
+        wrapper.pack(fill="x", pady=(10, 0))
 
-        The 1-px padx/pady on the outer Frame shows through as a solid
-        border line — no Canvas or relief tricks needed.  Children should
-        be packed into the returned frame with their own bg so the border
-        colour remains visible around the edges.
-        """
-        border = tk.Frame(parent, bg=C["border"], padx=1, pady=1)
-        border.configure(bg=C["border"])
-        return border
+        border = tk.Frame(wrapper, bg=C["border"], padx=1, pady=1)
+        border.pack(fill="x")
 
-    def _retro_button(self, parent, text, command,
-                      font=None, fg=None, bg=None,
-                      active_fg=None, active_bg=None,
-                      width=None, pady=6) -> tk.Button:
-        f   = font      or (FONT, 12, "bold")
-        fg  = fg        or C["fg"]
-        bg  = bg        or C["btn_bg"]
-        afg = active_fg or C["fg_hi"]
-        abg = active_bg or C["btn_act"]
-        kw  = dict(font=f, fg=fg, bg=bg, activeforeground=afg, activebackground=abg,
-                   relief="flat", bd=0, pady=pady, cursor="hand2",
-                   highlightthickness=2, highlightbackground=C["border"],
-                   highlightcolor=C["fg"], command=command)
+        inner = tk.Frame(border, bg=C["bg_card"])
+        inner.pack(fill="x")
+
+        tk.Label(inner, text=title,
+                 font=(FONT, 9, "bold"), bg=C["bg_card"],
+                 fg=C["text_muted"], padx=16, pady=9,
+                 anchor="w").pack(fill="x")
+        tk.Frame(inner, bg=C["border"], height=1).pack(fill="x")
+
+        return inner
+
+    def _btn(self, parent, text, command,
+             font=None, pady=7, width=None,
+             primary=False, success=False) -> tk.Button:
+        f = font or (FONT, 11)
+        if primary:
+            bg, fg, abg, afg = C["accent"], C["accent_fg"], C["accent_hov"], C["accent_fg"]
+        elif success:
+            bg, fg, abg, afg = C["success_light"], C["success"], C["success"], C["accent_fg"]
+        else:
+            bg, fg, abg, afg = C["bg_card"], C["text"], C["sel_bg"], C["text"]
+
+        kw: dict = dict(
+            font=f, fg=fg, bg=bg,
+            activeforeground=afg, activebackground=abg,
+            relief="flat", bd=0, pady=pady,
+            cursor="hand2",
+            highlightthickness=1,
+            highlightbackground=C["border"],
+            command=command,
+        )
         if width:
             kw["width"] = width
         return tk.Button(parent, text=text, **kw)
-
-    # ── Blinking cursor animation ──────────────────────────────────────────────
-
-    def _blink(self):
-        self._blink_on = not self._blink_on
-        self.cursor_lbl.config(fg=C["fg"] if self._blink_on else C["hdr_bg"])
-        self._blink_id = self.root.after(530, self._blink)
 
     # ── Estimates panel ────────────────────────────────────────────────────────
 
     def _build_estimates_panel(self):
         outer = self.estimates_outer
 
-        sub = tk.Frame(outer, bg=C["bg"], padx=14, pady=8)
+        sub = tk.Frame(outer, bg=C["bg"], padx=24, pady=(10, 0))
         sub.pack(fill="x")
 
-        tk.Label(sub, text="▼ MODEL ESTIMATES",
-                 font=(FONT, 10, "bold"), bg=C["bg"], fg=C["fg_dim"]).pack(side="left")
-        self.audio_dur_label = tk.Label(sub, text="", bg=C["bg"],
-                                         fg=C["fg_dim"], font=(FONT, 10))
-        self.audio_dur_label.pack(side="left", padx=(10, 0))
+        hdr_row = tk.Frame(sub, bg=C["bg"])
+        hdr_row.pack(fill="x", pady=(0, 6))
 
-        # Table border card
-        border = tk.Frame(outer, bg=C["border"], padx=1, pady=1)
-        border.pack(padx=14, pady=(0, 8), fill="x")
+        tk.Label(hdr_row, text="Estimates",
+                 font=(FONT, 9, "bold"), bg=C["bg"],
+                 fg=C["text_muted"]).pack(side="left")
 
-        tbl = tk.Frame(border, bg=C["bg_card"])
+        self.audio_dur_label = tk.Label(hdr_row, text="",
+                                         bg=C["bg"], fg=C["text_muted"],
+                                         font=(FONT, 10))
+        self.audio_dur_label.pack(side="left", padx=(8, 0))
+
+        tbl_border = tk.Frame(sub, bg=C["border"], padx=1, pady=1)
+        tbl_border.pack(fill="x")
+
+        tbl = tk.Frame(tbl_border, bg=C["bg_card"])
         tbl.pack(fill="x")
 
-        # Header row
         col_specs = [
-            ("MODEL",      10, C["fg"],    None),
-            ("SPEED",      11, C["fg"],    None),
-            ("ACCURACY",   10, C["fg"],    None),
-            ("EST. TIME",  11, C["fg"],    None),
-            ("FINISHES ~", 12, C["fg"],    None),
+            ("Model",      10),
+            ("Speed",      11),
+            ("Accuracy",   10),
+            ("Est. time",  11),
+            ("Finishes ~", 12),
         ]
-        for col, (label, w, fg, _) in enumerate(col_specs):
-            tk.Label(tbl, text=label, bg=C["border"], fg=C["bg"],
-                     font=(FONT, 9, "bold"), width=w, pady=5, anchor="center",
+        for col, (label, w) in enumerate(col_specs):
+            tk.Label(tbl, text=label,
+                     bg=C["bg_input"], fg=C["text_muted"],
+                     font=(FONT, 9, "bold"), width=w,
+                     pady=7, anchor="center",
                      ).grid(row=0, column=col, padx=1, pady=(0, 1), sticky="nsew")
 
-        # Data rows
         self._est_rows: dict = {}
         for r, model in enumerate(MODEL_ORDER, 1):
             info   = MODEL_INFO[model]
-            row_bg = C["bg_dark"] if r % 2 == 0 else C["bg_card"]
+            row_bg = C["bg_input"] if r % 2 == 0 else C["bg_card"]
             cells: dict = {}
 
-            def _lbl(col, text, fg=C["fg"], width=None, bold=False, _bg=row_bg):
+            def _lbl(col, text, fg=C["text"], bold=False, _bg=row_bg):
                 f = (FONT, 10, "bold") if bold else (FONT, 10)
                 w = col_specs[col][1]
                 lbl = tk.Label(tbl, text=text, bg=_bg, fg=fg,
-                               font=f, width=w, pady=5, anchor="center",
+                               font=f, width=w, pady=7, anchor="center",
                                cursor="hand2")
                 lbl.grid(row=r, column=col, padx=1, pady=1, sticky="nsew")
                 return lbl
 
-            cells["model"]    = _lbl(0, model,             fg=C["fg_hi"], bold=True)
-            cells["speed"]    = _lbl(1, info["speed"])
-            cells["accuracy"] = _lbl(2, info["accuracy"],  fg=info["acc_fg"], bold=True)
-            cells["est_time"] = _lbl(3, "—")
-            cells["finish"]   = _lbl(4, "—",               fg=C["yellow"])
+            cells["model"]    = _lbl(0, model,            fg=C["text_hi"],           bold=True)
+            cells["speed"]    = _lbl(1, info["speed"],    fg=C["text_muted"])
+            cells["accuracy"] = _lbl(2, info["accuracy"], fg=ACC_COLORS.get(model, C["text"]), bold=True)
+            cells["est_time"] = _lbl(3, "—",              fg=C["text_muted"])
+            cells["finish"]   = _lbl(4, "—",              fg=C["text_muted"])
 
             self._est_rows[model] = {"cells": cells, "alt_bg": row_bg}
 
-            # Clicking any cell in the row selects that model.
-            # Factory functions (_make_select, _make_hover) are used instead
-            # of lambdas so that `m` is captured by value at definition time.
-            # A plain lambda inside a loop would capture the loop variable by
-            # reference and all rows would end up bound to the last model name.
             def _make_select(m):
                 def _on_click(_e):
                     self.model_var.set(m)
@@ -455,19 +429,19 @@ class TranscriberApp:
             def _make_hover(m, enter):
                 def _on_hover(_e):
                     if self.model_var.get() == m:
-                        return          # already selected — don't flicker
-                    bg = C["btn_bg"] if enter else self._est_rows[m]["alt_bg"]
+                        return
+                    bg = C["sel_bg"] if enter else self._est_rows[m]["alt_bg"]
                     for cell in self._est_rows[m]["cells"].values():
                         cell.config(bg=bg)
                 return _on_hover
 
-            click_cb      = _make_select(model)
-            hover_in_cb   = _make_hover(model, enter=True)
-            hover_out_cb  = _make_hover(model, enter=False)
+            click_cb     = _make_select(model)
+            hover_in_cb  = _make_hover(model, enter=True)
+            hover_out_cb = _make_hover(model, enter=False)
             for cell in cells.values():
-                cell.bind("<Button-1>",  click_cb)
-                cell.bind("<Enter>",     hover_in_cb)
-                cell.bind("<Leave>",     hover_out_cb)
+                cell.bind("<Button-1>", click_cb)
+                cell.bind("<Enter>",    hover_in_cb)
+                cell.bind("<Leave>",    hover_out_cb)
 
     def _refresh_estimates(self):
         if self.total_audio_seconds <= 0:
@@ -475,9 +449,8 @@ class TranscriberApp:
         total_s  = self.total_audio_seconds
         selected = self.model_var.get()
 
-        self.audio_dur_label.config(
-            text=f"·  TOTAL AUDIO: {fmt_dur(total_s)}"
-        )
+        self.audio_dur_label.config(text=f"·  Total audio: {fmt_dur(total_s)}")
+
         for model in MODEL_ORDER:
             info    = MODEL_INFO[model]
             est_s   = info["load_s"] + total_s * info["rt_mult"]
@@ -489,48 +462,46 @@ class TranscriberApp:
             cells["est_time"].config(text=fmt_dur(est_s))
             cells["finish"].config(text=fmt_clock(est_s))
 
-            # Highlight selected row
             for cell in cells.values():
                 cell.config(bg=row_bg)
+
             if is_sel:
-                cells["model"].config(fg=C["fg"], text=f"► {model}")
-                cells["speed"].config(fg=C["fg"])
-                cells["est_time"].config(fg=C["fg"])
-                cells["finish"].config(fg=C["fg"])
+                cells["model"].config(fg=C["accent"],      text=f"▶  {model}")
+                cells["speed"].config(fg=C["text"])
+                cells["est_time"].config(fg=C["accent"])
+                cells["finish"].config(fg=C["accent"])
             else:
-                cells["model"].config(fg=C["fg_hi"], text=model)
-                cells["speed"].config(fg=C["fg_dim"])
-                cells["est_time"].config(fg=C["fg_dim"])
-                cells["finish"].config(fg=C["amber"])
+                cells["model"].config(fg=C["text_hi"],     text=model)
+                cells["speed"].config(fg=C["text_muted"])
+                cells["est_time"].config(fg=C["text_muted"])
+                cells["finish"].config(fg=C["text_muted"])
 
     # ── Progress panel ─────────────────────────────────────────────────────────
 
     def _build_progress_panel(self):
         pf = self.progress_outer
 
-        top = tk.Frame(pf, bg=C["border"], padx=1, pady=1)
-        top.pack(padx=14, pady=(8, 6), fill="x")
+        prog_frame = tk.Frame(pf, bg=C["bg"], padx=24, pady=(10, 4))
+        prog_frame.pack(fill="x")
 
-        inner = tk.Frame(top, bg=C["bg_card"], padx=10, pady=8)
-        inner.pack(fill="x")
+        tk.Label(prog_frame, text="Progress",
+                 font=(FONT, 9, "bold"), bg=C["bg"],
+                 fg=C["text_muted"]).pack(anchor="w", pady=(0, 6))
 
-        tk.Label(inner, text="▼ PROGRESS",
-                 font=(FONT, 10, "bold"), bg=C["bg_card"], fg=C["fg_dim"]).pack(anchor="w")
+        self.smooth_bar = SmoothBar(prog_frame, height=6, bg=C["bg"])
+        self.smooth_bar.pack(fill="x")
 
-        self.pixel_bar = PixelBar(inner, height=28)
-        self.pixel_bar.pack(fill="x", pady=(6, 6))
-
-        info_row = tk.Frame(inner, bg=C["bg_card"])
-        info_row.pack(fill="x")
+        info_row = tk.Frame(prog_frame, bg=C["bg"])
+        info_row.pack(fill="x", pady=(6, 0))
 
         self.remaining_lbl = tk.Label(info_row, text="",
-                                       font=(FONT, 11, "bold"),
-                                       bg=C["bg_card"], fg=C["fg"])
+                                       font=(FONT, 11), bg=C["bg"],
+                                       fg=C["text"])
         self.remaining_lbl.pack(side="left")
 
         self.finish_at_lbl = tk.Label(info_row, text="",
-                                       font=(FONT, 11, "bold"),
-                                       bg=C["bg_card"], fg=C["yellow"])
+                                       font=(FONT, 11), bg=C["bg"],
+                                       fg=C["text_muted"])
         self.finish_at_lbl.pack(side="right")
 
     # ── Progress ticking ───────────────────────────────────────────────────────
@@ -543,14 +514,12 @@ class TranscriberApp:
             return
         elapsed   = time.time() - self.transcription_start
         est       = self.estimated_total_s if self.estimated_total_s > 0 else 1.0
-        # Cap at 98 % so the bar never shows "done" before _on_done() fires.
-        # The final jump to 100 % is handled explicitly in _on_done().
         pct       = min(98.0, (elapsed / est) * 100)
         remaining = max(0.0, est - elapsed)
 
-        self.pixel_bar.set(pct)
-        self.remaining_lbl.config(text=f"TIME LEFT: {fmt_dur(remaining)}")
-        self.finish_at_lbl.config(text=f"DONE BY  {fmt_clock(remaining)}")
+        self.smooth_bar.set(pct)
+        self.remaining_lbl.config(text=f"Time left: {fmt_dur(remaining)}")
+        self.finish_at_lbl.config(text=f"Done by {fmt_clock(remaining)}")
 
         self._tick_id = self.root.after(300, self._tick_progress)
 
@@ -574,20 +543,19 @@ class TranscriberApp:
         self.selected_files = list(files)
         names  = [Path(f).name for f in files]
         joined = ", ".join(names)
-        label  = joined if len(joined) <= 54 else f"{len(files)} FILE(S) SELECTED"
-        self.file_label.config(text=label.upper(), fg=C["fg"])
+        label  = joined if len(joined) <= 54 else f"{len(files)} file(s) selected"
+        self.file_label.config(text=label, fg=C["text"])
 
-        # Reveal estimates table
         self.estimates_outer.pack(fill="x", before=self.btn_row)
-        self.audio_dur_label.config(text="·  ANALYZING...")
+        self.audio_dur_label.config(text="·  Analyzing…")
         for row in self._est_rows.values():
             for k in ("est_time", "finish"):
-                row["cells"][k].config(text="...")
+                row["cells"][k].config(text="…")
 
         threading.Thread(target=self._analyze_files, daemon=True).start()
 
     def _analyze_files(self):
-        total = 0.0
+        total  = 0.0
         failed = 0
         for f in self.selected_files:
             dur = get_audio_duration(f)
@@ -596,7 +564,7 @@ class TranscriberApp:
             else:
                 failed += 1
         if failed:
-            self.q.put(("log", f"WARNING: Could not probe duration for {failed} file(s).\n"))
+            self.q.put(("log", f"Warning: could not probe duration for {failed} file(s).\n"))
         self.q.put(("duration", total))
 
     # ── Output helpers ─────────────────────────────────────────────────────────
@@ -611,12 +579,8 @@ class TranscriberApp:
 
     def _poll(self):
         """
-        Drain the cross-thread queue and dispatch messages to widget updates.
-
-        Runs on the main thread every 40 ms via root.after().  Worker threads
-        must NEVER touch widgets directly; they post messages here instead.
-        Using get_nowait() + Empty rather than a blocking get() keeps the main
-        loop responsive — we process everything available this tick, then yield.
+        Drain the cross-thread queue on the main thread every 40 ms.
+        Worker threads must never touch widgets directly.
         """
         try:
             while True:
@@ -636,16 +600,14 @@ class TranscriberApp:
 
     def _run(self):
         if not self.selected_files:
-            messagebox.showwarning(
-                "NO FILES",
-                "PLEASE CHOOSE AT LEAST ONE AUDIO FILE FIRST."
-            )
+            messagebox.showwarning("No files",
+                                   "Please choose at least one audio file first.")
             return
 
         if not PYTHON.exists():
             messagebox.showerror(
-                "NOT INSTALLED",
-                f"Python venv not found at:\n{PYTHON}\n\nRun  ./install  first.",
+                "Not installed",
+                f"Python environment not found at:\n{PYTHON}\n\nRun  ./install  first.",
             )
             return
 
@@ -653,25 +615,23 @@ class TranscriberApp:
         info  = MODEL_INFO.get(model, MODEL_INFO["medium"])
         self.estimated_total_s = info["load_s"] + self.total_audio_seconds * info["rt_mult"]
 
-        self.run_btn.config(state="disabled", text="[ ⏳  WORKING... ]",
-                            bg=C["fg_dim"], fg=C["bg"])
+        self.run_btn.config(state="disabled", text="Transcribing…",
+                            bg=C["text_muted"], fg=C["accent_fg"])
         self.open_btn.pack_forget()
         self.out.config(state="normal")
         self.out.delete("1.0", "end")
         self.out.config(state="disabled")
 
-        # Show progress panel
         self.progress_outer.pack(fill="x", before=self.btn_row)
-        self.pixel_bar.set(0)
-        self.remaining_lbl.config(text=f"TIME LEFT: {fmt_dur(self.estimated_total_s)}")
-        self.finish_at_lbl.config(text=f"DONE BY  {fmt_clock(self.estimated_total_s)}")
+        self.smooth_bar.set(0)
+        self.remaining_lbl.config(text=f"Time left: {fmt_dur(self.estimated_total_s)}")
+        self.finish_at_lbl.config(text=f"Done by {fmt_clock(self.estimated_total_s)}")
 
         self.transcription_start = time.time()
         self._start_progress_tick()
 
-        # Stage files into input_audio/.  Clear previous contents first so
-        # transcribe.py always sees exactly the files chosen for this run —
-        # leftover files from a prior run would otherwise be re-transcribed.
+        # Stage files into input_audio/ — clear previous contents first so
+        # transcribe.py always sees exactly the files chosen for this run.
         INPUT_DIR.mkdir(exist_ok=True)
         for old in INPUT_DIR.iterdir():
             if old.is_file():
@@ -681,7 +641,7 @@ class TranscriberApp:
             if src_path.exists():
                 shutil.copy2(src_path, INPUT_DIR / src_path.name)
             else:
-                self.q.put(("log", f"WARNING: File not found, skipping: {src_path.name}\n"))
+                self.q.put(("log", f"Warning: file not found, skipping: {src_path.name}\n"))
 
         threading.Thread(
             target=self._worker,
@@ -691,14 +651,11 @@ class TranscriberApp:
 
     def _worker(self, model: str, lang: str):
         cmd = [
-            str(PYTHON),
-            str(SCRIPT),
+            str(PYTHON), str(SCRIPT),
             "--model", model, "--language", lang, "--order", "name",
         ]
-        # NO_COLOR=1 and TERM=dumb suppress Rich's ANSI colour sequences and
-        # box-drawing characters so the console widget shows plain text.
-        # stderr=STDOUT merges stderr into the single stdout pipe so error
-        # messages from the child process appear in the GUI log too.
+        # NO_COLOR + TERM=dumb suppress Rich's ANSI sequences so the console
+        # widget shows plain text.  stderr=STDOUT merges child process errors.
         env = {**os.environ, "NO_COLOR": "1", "TERM": "dumb"}
         try:
             self._proc = subprocess.Popen(
@@ -710,13 +667,13 @@ class TranscriberApp:
                 self.q.put(("log", strip_ansi(line)))
             self._proc.wait()
             if self._proc.returncode == 0:
-                self.q.put(("log", "\n>>> TRANSCRIPTION COMPLETE <<<\n"))
+                self.q.put(("log", "\nTranscription complete.\n"))
                 self.q.put(("done", True))
             else:
-                self.q.put(("log", f"\n!!! PROCESS EXITED WITH CODE {self._proc.returncode} !!!\n"))
+                self.q.put(("log", f"\nProcess exited with code {self._proc.returncode}.\n"))
                 self.q.put(("done", False))
         except Exception as exc:
-            self.q.put(("log", f"\n!!! ERROR: {exc} !!!\n"))
+            self.q.put(("log", f"\nError: {exc}\n"))
             self.q.put(("done", False))
         finally:
             self._proc = None
@@ -725,29 +682,26 @@ class TranscriberApp:
         self._stop_progress_tick()
         self.transcription_start = None
 
-        self.pixel_bar.set(100 if success else 0)
+        self.smooth_bar.set(100 if success else 0)
         if success:
-            self.remaining_lbl.config(text="STATUS: COMPLETE ✓", fg=C["fg"])
-            self.finish_at_lbl.config(
-                text=f"FINISHED AT {fmt_clock(0)}",
-                fg=C["fg"]
-            )
+            self.remaining_lbl.config(text="Done  ✓", fg=C["success"])
+            self.finish_at_lbl.config(text=f"Finished at {fmt_clock(0)}", fg=C["text_muted"])
         else:
-            self.remaining_lbl.config(text="STATUS: FAILED  ✗", fg=C["red"])
-            self.finish_at_lbl.config(text="", fg=C["yellow"])
+            self.remaining_lbl.config(text="Failed", fg=C["error"])
+            self.finish_at_lbl.config(text="", fg=C["text_muted"])
 
-        self.run_btn.config(state="normal", text="[ ▶  TRANSCRIBE ]",
-                            bg=C["btn_bg"], fg=C["fg"])
+        self.run_btn.config(state="normal", text="Transcribe",
+                            bg=C["accent"], fg=C["accent_fg"])
         if success:
-            self.open_btn.pack(pady=(0, 14))
+            self.open_btn.pack(pady=(0, 4))
 
     def _open_result(self):
         if OUTPUT_FILE.exists():
             subprocess.run(["open", str(OUTPUT_FILE)])
         else:
             messagebox.showerror(
-                "FILE NOT FOUND",
-                f"OUTPUT FILE NOT FOUND:\n{OUTPUT_FILE}\n\nCHECK THE CONSOLE LOG ABOVE.",
+                "File not found",
+                f"Output file not found:\n{OUTPUT_FILE}\n\nCheck the console log above.",
             )
 
 
