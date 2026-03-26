@@ -166,7 +166,7 @@ class TranscriberApp:
         self.root = root
         self.root.title("Audio Transcriber")
         self.root.configure(bg=C["bg"])
-        self.root.resizable(True, False)
+        self.root.resizable(True, True)
 
         self.selected_files: List[str] = []
         self._output_files: List[str] = []   # paths captured from OUTPUT: lines
