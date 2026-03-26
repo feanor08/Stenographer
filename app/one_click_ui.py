@@ -295,7 +295,7 @@ class TranscriberApp:
         )
         self.out.pack(fill="x")
 
-        # ── Open result button (revealed on success) ───────────────────────────
+        # ── Open result / show in Finder buttons (revealed on success) ───────────
         self._result_row = tk.Frame(self.root, bg=C["bg"], padx=24)
         self._result_row.pack(fill="x", pady=(0, 16))
         self.open_btn = self._btn(
@@ -305,6 +305,13 @@ class TranscriberApp:
             pady=8,
             width=18,
             success=True,
+        )
+        self.show_btn = self._btn(
+            self._result_row, "📂  Show in Finder",
+            self._show_in_finder,
+            font=(FONT, 12),
+            pady=8,
+            width=18,
         )
 
         self.root.update()
@@ -617,6 +624,7 @@ class TranscriberApp:
         self.run_btn.config(state="disabled", text="Transcribing…",
                             bg=C["text_muted"], fg=C["accent_fg"])
         self.open_btn.pack_forget()
+        self.show_btn.pack_forget()
         self.out.config(state="normal")
         self.out.delete("1.0", "end")
         self.out.config(state="disabled")
@@ -682,7 +690,14 @@ class TranscriberApp:
         self.run_btn.config(state="normal", text="Transcribe",
                             bg=C["accent"], fg=C["accent_fg"])
         if success:
-            self.open_btn.pack(pady=(0, 4))
+            self.open_btn.pack(side="left", pady=(0, 4))
+            self.show_btn.pack(side="left", pady=(0, 4), padx=(10, 0))
+
+    def _show_in_finder(self):
+        if self._output_files:
+            subprocess.run(["open", "-R", self._output_files[0]])
+        else:
+            messagebox.showerror("Not found", "Output path was not captured.")
 
     def _open_result(self):
         if self._output_files:
