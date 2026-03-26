@@ -1,63 +1,111 @@
-# Audio Transcriber
+# 🎙️ Audio Transcriber
 
-A simple desktop app that turns your audio files into text — no internet required, no accounts, no subscriptions. Just drop your files in and hit go.
+> Turn any audio file into text — no internet, no accounts, no subscriptions. Just press go.
 
-**[⬇ Download](https://github.com/feanor08/AudioTranscriber/archive/refs/heads/main.zip)**
+**[⬇️ Download](https://github.com/feanor08/AudioTranscriber/archive/refs/heads/main.zip)**
 
-## Getting started
+---
 
-**Step 1 — Install FFmpeg** (you only need to do this once)
+## 🖥️ What does it look like?
 
-- On a Mac: open Terminal and run `brew install ffmpeg`
-- On Ubuntu/Debian Linux: open Terminal and run `sudo apt install ffmpeg`
+You get a simple window. Pick your files, choose a quality level, hit **Transcribe**. That's it.
 
-If you don't have Homebrew on Mac, grab it from [brew.sh](https://brew.sh) first.
+The transcribed text file is saved right next to your original audio file — you'll find it right where you left it.
 
-**Step 2 — Run the installer** (also just once)
+---
 
-Double-click `install` in the project folder, or open Terminal, navigate to the folder, and run:
+## 🚀 Getting started
+
+There are 3 steps to get it running. You only do steps 1 and 2 **once, ever**.
+
+---
+
+### Step 1 — Install FFmpeg
+
+FFmpeg is a free tool that helps read audio files. You just need to install it once.
+
+**On a Mac:**
+
+1. Open **Terminal** (press `⌘ + Space`, type "Terminal", hit Enter)
+2. Paste this and hit Enter:
+   ```
+   brew install ffmpeg
+   ```
+   > Don't have Homebrew? First run this, then come back:
+   > ```
+   > /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   > ```
+
+**On Linux (Ubuntu/Debian):**
 ```
-./install
+sudo apt install ffmpeg
 ```
-This sets everything up automatically.
 
-**Step 3 — Launch the app**
+---
 
-Run `./transcribe` (or double-click it). A window will pop up.
+### Step 2 — Run the installer
 
-## How to use it
+1. Unzip the downloaded folder
+2. Open **Terminal** and drag the folder into it (this sets the path automatically)
+3. Type `./install` and hit Enter
 
-1. Click **Choose Files** and pick your audio files (MP3, M4A, WAV, and most other formats work)
-2. Pick a model — **medium** is a good starting point (see below)
-3. Hit **Transcribe**
-4. When it's done, click **Open Result** to see your transcription
+This sets everything up. You'll see some text scroll by — that's normal. Wait for it to finish.
 
-Your transcription lands in `app/transcriptions.txt` — one section per file.
+---
 
-## Choosing a model
+### Step 3 — Open the app
 
-Bigger models are more accurate but take longer. Here's a rough guide:
+Double-click the **`transcribe`** file in the folder, or type `./transcribe` in Terminal.
 
-| Model | Speed | Accuracy | Good for |
-|-------|-------|----------|----------|
-| tiny | Very fast | ~60% | Quick drafts, testing |
-| base | Fast | ~70% | Short clips, clear audio |
-| small | Fast | ~80% | Most everyday use |
-| medium | Balanced | ~90% | Best default choice |
-| large-v3 | Slow | ~95% | Important recordings, tricky accents |
+A window will pop up and you're ready to go! ✅
 
-The app shows you an estimated finish time before you start, so you can pick based on how long you're willing to wait.
+---
 
-## What audio files does it support?
+## 🎧 How to use it
 
-MP3, WAV, M4A, FLAC, OGG, AAC, WMA, MP4, MKV — basically anything you'd normally encounter.
+| Step | What to do |
+|------|-----------|
+| 1️⃣ | Click **Choose Files** and pick your audio |
+| 2️⃣ | Pick a model (not sure? just leave it on **medium**) |
+| 3️⃣ | Hit the big **Transcribe** button |
+| 4️⃣ | The file opens automatically when it's done ✅ |
 
-## Does it need the internet?
+---
 
-Only to download the model the first time you use it. After that it works completely offline. Models are saved to your computer automatically.
+## ⚡ Which model should I pick?
 
-## Tips
+Think of it like a photo — higher quality takes longer to process.
 
-- Clean, quiet recordings give the best results. Heavy background noise or music can trip it up.
-- If you're transcribing a conversation with multiple speakers, the result will just be one big block of text — speaker labels aren't supported in the GUI (there's a CLI option for that if you need it).
-- The app remembers how long model loading took last time and uses that to give you better time estimates going forward.
+| Model | Speed | Accuracy | When to use it |
+|-------|-------|----------|----------------|
+| tiny | ⚡⚡⚡⚡ Very fast | ~60% | Just testing it out |
+| base | ⚡⚡⚡ Fast | ~70% | Short clips, clear audio |
+| small | ⚡⚡ Fast | ~80% | Everyday recordings |
+| **medium** ⭐ | ⚡ Balanced | ~90% | **Best starting point** |
+| large-v3 | 🐢 Slow | ~95% | Important recordings, heavy accents |
+
+The app will show you how long it'll take **before** you start, so you can decide.
+
+---
+
+## 📁 What file types work?
+
+Pretty much everything:
+
+`MP3` · `WAV` · `M4A` · `FLAC` · `AAC` · `OGG` · `WMA` · `MP4` · `MKV`
+
+---
+
+## 🌐 Does it need wifi?
+
+Only **once** — to download the AI model the first time you use it.
+
+After that, it works **100% offline**. Your audio never leaves your computer.
+
+---
+
+## 💡 Tips for best results
+
+- 🎯 **Clear audio = better results.** Background music or noise will reduce accuracy.
+- 🔇 **Quiet recordings** transcribe much better than ones with lots of echo.
+- ⏱️ The app learns from each run and gets better at predicting how long things will take.
