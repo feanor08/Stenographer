@@ -9,6 +9,9 @@ from transcribe import (
     partial_output_path,
     collect_audio_files,
     check_ffmpeg,
+    format_srt,
+    format_vtt,
+    format_txt_timed,
     MAX_AUDIO_FILES,
     MAX_SCAN_DEPTH,
 )
@@ -96,3 +99,82 @@ class TestCollectAudioFiles:
         (tmp_path / "UPPER.MP3").touch()
         files = collect_audio_files(tmp_path)
         assert len(files) == 1
+
+
+# ── format_srt ─────────────────────────────────────────────────────────────────
+
+SEGS = [
+    {"start": 0.0,  "end": 1.5,  "text": "Hello world"},
+    {"start": 1.5,  "end": 3.25, "text": "Goodbye"},
+    {"start": 3.25, "end": 4.0,  "text": "  "},   # whitespace-only — should be skipped
+]
+
+
+class TestFormatSrt:
+    def test_numbered_sequentially(self):
+        result = format_srt(SEGS)
+        assert result.startswith("1\n")
+        assert "2\n" in result
+
+    def test_timestamp_format(self):
+        result = format_srt(SEGS)
+        assert "00:00:00,000 --> 00:00:01,500" in result
+
+    def test_text_present(self):
+        result = format_srt(SEGS)
+        assert "Hello world" in result
+        assert "Goodbye" in result
+
+    def test_skips_empty_text(self):
+        result = format_srt(SEGS)
+        # Only 2 valid segments → last index is 2
+        assert "3\n" not in result
+
+    def test_empty_segments(self):
+        assert format_srt([]) == ""
+
+
+# ── format_vtt ─────────────────────────────────────────────────────────────────
+
+class TestFormatVtt:
+    def test_starts_with_webvtt(self):
+        result = format_vtt(SEGS)
+        assert result.startswith("WEBVTT")
+
+    def test_timestamp_format(self):
+        result = format_vtt(SEGS)
+        assert "00:00:00.000 --> 00:00:01.500" in result
+
+    def test_text_present(self):
+        result = format_vtt(SEGS)
+        assert "Hello world" in result
+
+    def test_skips_empty_text(self):
+        result = format_vtt(SEGS)
+        # whitespace-only segment should not produce a cue
+        assert result.count("-->") == 2
+
+    def test_empty_segments(self):
+        result = format_vtt([])
+        assert result.startswith("WEBVTT")
+
+
+# ── format_txt_timed ───────────────────────────────────────────────────────────
+
+class TestFormatTxtTimed:
+    def test_timestamp_prefix(self):
+        result = format_txt_timed(SEGS)
+        assert result.startswith("[00:00:00]")
+
+    def test_contains_text(self):
+        result = format_txt_timed(SEGS)
+        assert "Hello world" in result
+        assert "Goodbye" in result
+
+    def test_skips_whitespace_only(self):
+        result = format_txt_timed(SEGS)
+        lines = result.splitlines()
+        assert len(lines) == 2  # whitespace-only segment skipped
+
+    def test_empty_segments(self):
+        assert format_txt_timed([]) == ""

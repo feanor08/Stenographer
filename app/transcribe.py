@@ -190,11 +190,9 @@ def iter_transcribe_segments(
     task: str,
     beam_size: int = 5,
     vad: bool = True,
+    on_language_detected=None,
 ):
     model = model_bundle["model"]
-    # Passing the literal string "auto" would cause faster-whisper to try to
-    # load a language model named "auto" and raise a KeyError, so we normalise
-    # it to None here (None = auto-detect).
     lang = None if (not language or language.lower() == "auto") else language
 
     if WhisperModel is None:
@@ -202,10 +200,12 @@ def iter_transcribe_segments(
             f"faster-whisper is not installed ({_FASTER_WHISPER_ERR}). "
             "Run: pip install faster-whisper"
         )
-    segments, _ = model.transcribe(
+    segments, info = model.transcribe(
         str(audio_path), language=lang, task=task,
         beam_size=beam_size, vad_filter=vad,
     )
+    if on_language_detected is not None and lang is None:
+        on_language_detected(info.language, info.language_probability)
     for seg in segments:
         text = str(seg.text).strip()
         if text:
@@ -265,6 +265,53 @@ def format_plain_segments(segments: List[Dict[str, object]]) -> str:
     return "\n".join(str(s["text"]) for s in segments if s.get("text")).strip()
 
 
+def _srt_ts(s: float) -> str:
+    h, rem = divmod(max(0, int(s)), 3600)
+    m, sec = divmod(rem, 60)
+    ms = int(round((s - int(s)) * 1000))
+    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+
+
+def _vtt_ts(s: float) -> str:
+    h, rem = divmod(max(0, int(s)), 3600)
+    m, sec = divmod(rem, 60)
+    ms = int(round((s - int(s)) * 1000))
+    return f"{h:02d}:{m:02d}:{sec:02d}.{ms:03d}"
+
+
+def format_srt(segments: List[Dict[str, object]]) -> str:
+    lines: List[str] = []
+    i = 1
+    for seg in segments:
+        if not str(seg.get("text", "")).strip():
+            continue
+        lines.append(
+            f"{i}\n{_srt_ts(float(seg['start']))} --> {_srt_ts(float(seg['end']))}\n"
+            f"{seg['text'].strip()}\n"
+        )
+        i += 1
+    return "\n".join(lines).strip()
+
+
+def format_vtt(segments: List[Dict[str, object]]) -> str:
+    lines = ["WEBVTT", ""]
+    for seg in segments:
+        if not str(seg.get("text", "")).strip():
+            continue
+        lines.append(
+            f"{_vtt_ts(float(seg['start']))} --> {_vtt_ts(float(seg['end']))}\n"
+            f"{seg['text'].strip()}\n"
+        )
+    return "\n".join(lines).strip()
+
+
+def format_txt_timed(segments: List[Dict[str, object]]) -> str:
+    return "\n".join(
+        f"[{fmt_hms(float(s['start']))}] {str(s['text']).strip()}"
+        for s in segments if str(s.get("text", "")).strip()
+    ).strip()
+
+
 def format_diarized_segments(
     segments: List[Dict[str, object]],
     speaker_turns: List[Dict[str, object]],
@@ -297,6 +344,55 @@ def format_diarized_segments(
             f"{speaker_map[best_speaker]}: {seg_text}"
         )
     return "\n".join(lines).strip()
+
+
+def _srt_ts(s: float) -> str:
+    """SRT timestamp: 00:01:23,456"""
+    h, rem = divmod(max(0, int(s)), 3600)
+    m, sec = divmod(rem, 60)
+    ms = int(round((s - int(s)) * 1000))
+    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+
+
+def _vtt_ts(s: float) -> str:
+    """WebVTT timestamp: 00:01:23.456"""
+    h, rem = divmod(max(0, int(s)), 3600)
+    m, sec = divmod(rem, 60)
+    ms = int(round((s - int(s)) * 1000))
+    return f"{h:02d}:{m:02d}:{sec:02d}.{ms:03d}"
+
+
+def format_srt(segments: List[Dict[str, object]]) -> str:
+    lines: List[str] = []
+    i = 1
+    for seg in segments:
+        if not str(seg.get("text", "")).strip():
+            continue
+        lines.append(
+            f"{i}\n{_srt_ts(float(seg['start']))} --> {_srt_ts(float(seg['end']))}\n"
+            f"{seg['text'].strip()}\n"
+        )
+        i += 1
+    return "\n".join(lines).strip()
+
+
+def format_vtt(segments: List[Dict[str, object]]) -> str:
+    lines = ["WEBVTT", ""]
+    for seg in segments:
+        if not str(seg.get("text", "")).strip():
+            continue
+        lines.append(
+            f"{_vtt_ts(float(seg['start']))} --> {_vtt_ts(float(seg['end']))}\n"
+            f"{seg['text'].strip()}\n"
+        )
+    return "\n".join(lines).strip()
+
+
+def format_txt_timed(segments: List[Dict[str, object]]) -> str:
+    return "\n".join(
+        f"[{fmt_hms(float(s['start']))}] {str(s['text']).strip()}"
+        for s in segments if str(s.get("text", "")).strip()
+    ).strip()
 
 
 # ── Model loading ──────────────────────────────────────────────────────────────
@@ -678,6 +774,7 @@ def main(
     device:       str                 = typer.Option("cpu",               "--device",       help="Device: cpu or cuda."),
     compute_type: str                 = typer.Option("int8",              "--compute-type", help="Compute type: int8|float16|float32."),
     files:        Optional[List[Path]]= typer.Option(None,                "--files",        help="Individual audio files; output goes next to each source file."),
+    fmt:          str                 = typer.Option("txt",               "--format",       help="Output format: txt, srt, or vtt."),
 ) -> None:
 
     run_start = time.time()
@@ -693,6 +790,8 @@ def main(
         raise typer.BadParameter(f"--model must be one of: {', '.join(sorted(valid_models))}")
     if num_speakers is not None and num_speakers < 1:
         raise typer.BadParameter("--num-speakers must be a positive integer")
+    if fmt not in {"txt", "srt", "vtt"}:
+        raise typer.BadParameter("--format must be one of: txt, srt, vtt")
 
     if not check_ffmpeg():
         log("⚠️  FFmpeg not found. Install: brew install ffmpeg (macOS) | apt install ffmpeg (Linux)")
@@ -741,7 +840,11 @@ def main(
         log(f"  {i:02d}. {p.name}  (ctime: {ctime})")
 
     # ── Load model ─────────────────────────────────────────────────────────────
-    log(f"Preparing model: {selected_model} | device={device} | compute={compute_type}")
+    cached = is_model_cached(selected_model)
+    if cached:
+        log(f"Loading model: {selected_model} | device={device} | compute={compute_type}")
+    else:
+        log(f"Downloading model: {selected_model} (first use — may take a few minutes) | device={device} | compute={compute_type}")
     model_obj = load_model_with_progress(
         selected_model, device=device, compute_type=compute_type, task=task
     )
@@ -785,8 +888,12 @@ def main(
                 segments: List[Dict[str, object]] = []
                 empty_count = 0
 
+                def _on_lang(lcode: str, lprob: float) -> None:
+                    print(f"LANG:{lcode}:{lprob:.2f}", flush=True)
+
                 for seg in iter_transcribe_segments(
-                    model_obj, audio, language=language, task=task
+                    model_obj, audio, language=language, task=task,
+                    on_language_detected=_on_lang,
                 ):
                     if not str(seg.get("text", "")).strip():
                         empty_count += 1
@@ -827,12 +934,17 @@ def main(
                         diarization_pipeline, audio, num_speakers=num_speakers
                     )
                     text = format_diarized_segments(segments, speaker_turns)
+                elif fmt == "srt":
+                    text = format_srt(segments)
+                elif fmt == "vtt":
+                    text = format_vtt(segments)
                 else:
-                    text = format_plain_segments(segments)
+                    text = format_txt_timed(segments)
 
                 if per_file_mode:
-                    out_path = audio.parent / f"{audio.stem}_transcribed_{run_ts}.txt"
-                    part     = out_path.with_suffix(".txt.part")
+                    ext = ".srt" if fmt == "srt" else ".vtt" if fmt == "vtt" else ".txt"
+                    out_path = audio.parent / f"{audio.stem}_transcribed_{run_ts}{ext}"
+                    part     = out_path.with_suffix(out_path.suffix + ".part")
                     with open(part, "w", encoding="utf-8") as fh:
                         fh.write((text if text else "[No speech detected]") + "\n")
                         fh.flush()
@@ -848,6 +960,7 @@ def main(
                 failures += 1
                 console.print(f"  ⚠️  Failed to transcribe {rich_escape(audio.name)}: {e}")
                 if per_file_mode:
+                    print(f"FAILED:{audio.resolve()}", flush=True)
                     log(f"  (no output file written for {audio.name})")
                 else:
                     output_lines.append(f"### {audio.name}\n[Error: {e}]\n")

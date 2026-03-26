@@ -17,6 +17,7 @@ Thread inventory
                     and ("done", bool) messages
   main thread     — _poll() drains the queue and updates widgets safely
 """
+import json
 import os
 import platform
 import re
@@ -104,6 +105,23 @@ def show_in_file_manager(path: str):
         subprocess.run(["open", "-R", path])
 
 
+SETTINGS_FILE = Path.home() / ".audio_transcriber_settings.json"
+
+
+def load_settings() -> dict:
+    try:
+        return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_settings(settings: dict) -> None:
+    try:
+        SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def get_audio_duration(path: str) -> float:
     try:
         result = subprocess.run(
@@ -119,19 +137,51 @@ def get_audio_duration(path: str) -> float:
 
 # ── Flat progress bar ──────────────────────────────────────────────────────────
 class SmoothBar(tk.Canvas):
-    """A clean, flat progress bar."""
-
     def __init__(self, parent, **kw):
         kw.setdefault("bg", C["bg_card"])
         kw.setdefault("highlightthickness", 0)
         kw.setdefault("height", 6)
         super().__init__(parent, **kw)
         self._pct = 0.0
+        self._indeterminate = False
+        self._bounce_x = 0.0
+        self._bounce_dir = 2.0
+        self._pulse_id: Optional[str] = None
         self.bind("<Configure>", lambda _e: self._draw())
 
     def set(self, pct: float):
         self._pct = max(0.0, min(100.0, pct))
         self._draw()
+
+    def pulse(self):
+        """Start indeterminate bouncing animation."""
+        self._indeterminate = True
+        self._bounce_x = 0.0
+        self._bounce_dir = 2.0
+        self._pulse_step()
+
+    def stop_pulse(self):
+        """Stop indeterminate animation and revert to determinate mode."""
+        self._indeterminate = False
+        if self._pulse_id:
+            self.after_cancel(self._pulse_id)
+            self._pulse_id = None
+        self._draw()
+
+    def _pulse_step(self):
+        if not self._indeterminate:
+            return
+        W = self.winfo_width()
+        seg_w = max(1, int(W * 0.28)) if W > 4 else 1
+        self._bounce_x += self._bounce_dir
+        if self._bounce_x + seg_w >= W:
+            self._bounce_x = max(0.0, W - seg_w)
+            self._bounce_dir = -2.0
+        elif self._bounce_x <= 0:
+            self._bounce_x = 0.0
+            self._bounce_dir = 2.0
+        self._draw()
+        self._pulse_id = self.after(25, self._pulse_step)
 
     def _draw(self):
         self.delete("all")
@@ -139,13 +189,17 @@ class SmoothBar(tk.Canvas):
         H = self.winfo_height()
         if W < 4 or H < 4:
             return
-        # Track
         self.create_rectangle(0, 0, W, H, fill=C["bar_track"], outline="")
-        # Fill
-        fill_w = max(0, int(W * self._pct / 100))
-        if fill_w > 0:
-            colour = C["success"] if self._pct >= 100 else C["accent"]
-            self.create_rectangle(0, 0, fill_w, H, fill=colour, outline="")
+        if self._indeterminate:
+            seg_w = max(1, int(W * 0.28))
+            left  = int(self._bounce_x)
+            right = min(W, left + seg_w)
+            self.create_rectangle(left, 0, right, H, fill=C["accent"], outline="")
+        else:
+            fill_w = max(0, int(W * self._pct / 100))
+            if fill_w > 0:
+                colour = C["success"] if self._pct >= 100 else C["accent"]
+                self.create_rectangle(0, 0, fill_w, H, fill=colour, outline="")
 
 
 # ── ttk style ──────────────────────────────────────────────────────────────────
@@ -189,6 +243,7 @@ class TranscriberApp:
 
         self.selected_files: List[str] = []
         self._output_files: List[str] = []   # paths captured from OUTPUT: lines
+        self._failed_files: List[str] = []
         self.q: queue.Queue = queue.Queue()
         self.total_audio_seconds: float = 0.0
         self.transcription_start: Optional[float] = None
@@ -196,6 +251,7 @@ class TranscriberApp:
         self._tick_id:  Optional[str] = None
         self._poll_id:  Optional[str] = None
         self._proc: Optional[subprocess.Popen] = None
+        self._settings: dict = load_settings()
 
         _apply_style()
         self._build_ui()
@@ -212,6 +268,10 @@ class TranscriberApp:
             self._tick_id = None
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
+            try:
+                self._proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
         self.root.destroy()
 
     # ── UI construction ────────────────────────────────────────────────────────
@@ -257,7 +317,7 @@ class TranscriberApp:
 
         tk.Label(opt_row, text="Model", fg=C["text_muted"], bg=C["bg_card"],
                  font=(FONT, 11)).pack(side="left")
-        self.model_var = tk.StringVar(value="medium")
+        self.model_var = tk.StringVar(value=self._settings.get("model", "medium"))
         model_cb = ttk.Combobox(opt_row, textvariable=self.model_var,
                                  values=MODELS, state="readonly", width=12,
                                  style="App.TCombobox")
@@ -266,9 +326,16 @@ class TranscriberApp:
 
         tk.Label(opt_row, text="Language", fg=C["text_muted"], bg=C["bg_card"],
                  font=(FONT, 11)).pack(side="left")
-        self.lang_var = tk.StringVar(value="auto")
+        self.lang_var = tk.StringVar(value=self._settings.get("language", "auto"))
         ttk.Combobox(opt_row, textvariable=self.lang_var,
                      values=LANGUAGES, state="readonly", width=9,
+                     style="App.TCombobox").pack(side="left", padx=(8, 0))
+
+        tk.Label(opt_row, text="Format", fg=C["text_muted"], bg=C["bg_card"],
+                 font=(FONT, 11)).pack(side="left", padx=(28, 0))
+        self.format_var = tk.StringVar(value=self._settings.get("format", "txt"))
+        ttk.Combobox(opt_row, textvariable=self.format_var,
+                     values=["txt", "srt", "vtt"], state="readonly", width=6,
                      style="App.TCombobox").pack(side="left", padx=(8, 0))
 
         # ── Estimates panel (revealed when files are selected) ─────────────────
@@ -317,6 +384,15 @@ class TranscriberApp:
             font=(FONT, 13, "bold"),
             pady=10,
             width=18,
+        )
+
+        self.retry_btn = self._btn(
+            self.btn_row, "🔁  Retry Failed",
+            self._retry,
+            font=(FONT, 13, "bold"),
+            pady=10,
+            width=16,
+            danger=True,
         )
 
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x", pady=(4, 0))
@@ -540,7 +616,12 @@ class TranscriberApp:
     # ── Progress ticking ───────────────────────────────────────────────────────
 
     def _start_progress_tick(self):
-        self._tick_progress()
+        if self.total_audio_seconds <= 0:
+            self.smooth_bar.pulse()
+            self.remaining_lbl.config(text="Working…")
+            self.finish_at_lbl.config(text="Duration unknown")
+        else:
+            self._tick_progress()
 
     def _tick_progress(self):
         if self.transcription_start is None:
@@ -557,6 +638,7 @@ class TranscriberApp:
         self._tick_id = self.root.after(300, self._tick_progress)
 
     def _stop_progress_tick(self):
+        self.smooth_bar.stop_pulse()
         if self._tick_id:
             self.root.after_cancel(self._tick_id)
             self._tick_id = None
@@ -573,6 +655,29 @@ class TranscriberApp:
         )
         if not files:
             return
+
+        # Deduplicate preserving selection order
+        seen: set = set()
+        unique = []
+        for f in files:
+            if f not in seen:
+                seen.add(f)
+                unique.append(f)
+        dupes = len(files) - len(unique)
+        files = unique
+
+        # Warn about unsupported extensions
+        from shared import AUDIO_EXTS
+        bad = [Path(f).name for f in files if Path(f).suffix.lower() not in AUDIO_EXTS]
+        if bad:
+            preview = "\n".join(bad[:5]) + ("\n…" if len(bad) > 5 else "")
+            messagebox.showwarning(
+                "Unsupported files",
+                f"{len(bad)} file(s) will be skipped (unsupported format):\n{preview}",
+            )
+        if dupes:
+            messagebox.showinfo("Duplicates removed", f"{dupes} duplicate file(s) removed.")
+
         self.selected_files = list(files)
         names  = [Path(f).name for f in files]
         joined = ", ".join(names)
@@ -648,11 +753,18 @@ class TranscriberApp:
         info  = MODEL_INFO.get(model, MODEL_INFO["medium"])
         self.estimated_total_s = info["load_s"] + self.total_audio_seconds * info["rt_mult"]
 
+        self._failed_files = []
         self._output_files = []
+        save_settings({
+            "model": model,
+            "language": self.lang_var.get(),
+            "format": self.format_var.get(),
+        })
         self.run_btn.config(state="disabled", text="Transcribing…",
                             bg=C["text_muted"], fg=C["accent_fg"])
         self.open_btn.pack_forget()
         self.show_btn.pack_forget()
+        self.retry_btn.pack_forget()
         self.stop_btn.pack(side="left", padx=(10, 0))
         self.out.config(state="normal")
         self.out.delete("1.0", "end")
@@ -668,12 +780,12 @@ class TranscriberApp:
 
         threading.Thread(
             target=self._worker,
-            args=(model, self.lang_var.get()),
+            args=(model, self.lang_var.get(), self.format_var.get()),
             daemon=True,
         ).start()
 
-    def _worker(self, model: str, lang: str):
-        cmd = [str(PYTHON), str(SCRIPT), "--model", model, "--language", lang]
+    def _worker(self, model: str, lang: str, fmt: str):
+        cmd = [str(PYTHON), str(SCRIPT), "--model", model, "--language", lang, "--format", fmt]
         for f in self.selected_files:
             cmd += ["--files", f]
 
@@ -690,6 +802,20 @@ class TranscriberApp:
                 clean = strip_ansi(line)
                 if clean.startswith("OUTPUT:"):
                     self._output_files.append(clean[len("OUTPUT:"):].strip())
+                    self.q.put(("log", clean))
+                    continue
+                if clean.startswith("FAILED:"):
+                    self._failed_files.append(clean[len("FAILED:"):].strip())
+                    self.q.put(("log", clean))
+                    continue
+                if clean.startswith("LANG:"):
+                    parts = clean[len("LANG:"):].strip().split(":")
+                    if len(parts) == 2:
+                        try:
+                            self.q.put(("log", f"Detected language: {parts[0]} ({float(parts[1])*100:.0f}% confidence)\n"))
+                            continue
+                        except ValueError:
+                            pass
                 self.q.put(("log", clean))
             self._proc.wait()
             if self._proc.returncode == 0:
@@ -728,6 +854,18 @@ class TranscriberApp:
             self.open_btn.pack(side="left", padx=(10, 0))
             self.show_btn.pack(side="left", padx=(10, 0))
             self._open_result()  # auto-open the file
+        if self._failed_files:
+            self.retry_btn.pack(side="left", padx=(10, 0))
+
+    def _retry(self):
+        if not self._failed_files:
+            return
+        self.selected_files = list(self._failed_files)
+        names  = [Path(f).name for f in self.selected_files]
+        joined = ", ".join(names)
+        label  = joined if len(joined) <= 54 else f"{len(self.selected_files)} file(s) selected"
+        self.file_label.config(text=label, fg=C["text"])
+        self._run()
 
     def _show_in_finder(self):
         if not self._output_files:
