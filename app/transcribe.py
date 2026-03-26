@@ -3,8 +3,7 @@
 transcribe.py — Audio transcription engine.
 
 Accepts audio_inputs.zip or input_audio/ folder, sorts files, runs
-faster-whisper (or optional whisperx backend), and writes all results
-to a single transcriptions.txt.
+faster-whisper, and writes all results to a single transcriptions.txt.
 """
 
 import json
@@ -48,7 +47,7 @@ from shared import (
     fmt_timestamp,
 )
 
-# ── Optional backends ──────────────────────────────────────────────────────────
+# ── Backend ────────────────────────────────────────────────────────────────────
 try:
     from faster_whisper import WhisperModel
 except ImportError as _e:
@@ -57,22 +56,16 @@ except ImportError as _e:
 else:
     _FASTER_WHISPER_ERR = ""
 
-try:
-    import whisperx
-except ImportError:
-    whisperx = None
-
 # ── Constants ──────────────────────────────────────────────────────────────────
 MODEL_LOAD_STATS_FILE = Path(".model_load_times.json")
 MAX_ZIP_BYTES         = 2 * 1024 * 1024 * 1024   # 2 GB guard against zip bombs
 MAX_AUDIO_FILES       = 500                        # rglob file-count safety cap
 MAX_SCAN_DEPTH        = 6                          # rglob depth safety cap
 
-# CLI model choices (whisperx is an alias for large-v3 with a different backend)
 MODEL_CHOICES = [
     (name, MODEL_INFO[name]["speed"].title(), MODEL_INFO[name]["accuracy"])
     for name in MODEL_ORDER
-] + [("whisperx", "Alt backend", "High")]
+]
 
 CLOCK_FRAMES = ["🕛", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚"]
 
@@ -198,39 +191,12 @@ def iter_transcribe_segments(
     beam_size: int = 5,
     vad: bool = True,
 ):
-    backend = str(model_bundle.get("backend", "faster-whisper"))
-    model   = model_bundle["model"]
-    # Both backends treat None as "auto-detect".  Passing the literal string
-    # "auto" would cause faster-whisper to try to load a language model named
-    # "auto" and raise a KeyError, so we normalise it to None here.
+    model = model_bundle["model"]
+    # Passing the literal string "auto" would cause faster-whisper to try to
+    # load a language model named "auto" and raise a KeyError, so we normalise
+    # it to None here (None = auto-detect).
     lang = None if (not language or language.lower() == "auto") else language
 
-    if backend == "whisperx":
-        if whisperx is None:
-            raise RuntimeError(
-                "whisperx is not installed. Run: pip install whisperx"
-            )
-        audio  = whisperx.load_audio(str(audio_path))
-        kwargs: dict = {"batch_size": 16, "task": task}
-        if lang is not None:
-            kwargs["language"] = lang
-        try:
-            result = model.transcribe(audio, **kwargs)
-        except TypeError:
-            kwargs.pop("task", None)
-            result = model.transcribe(audio, **kwargs)
-
-        for seg in (result.get("segments", []) if isinstance(result, dict) else []):
-            text = str(seg.get("text", "")).strip()
-            if text:
-                yield {
-                    "start": float(seg.get("start", 0.0) or 0.0),
-                    "end":   float(seg.get("end",   0.0) or 0.0),
-                    "text":  text,
-                }
-        return
-
-    # faster-whisper backend
     if WhisperModel is None:
         raise RuntimeError(
             f"faster-whisper is not installed ({_FASTER_WHISPER_ERR}). "
@@ -338,14 +304,6 @@ def format_diarized_segments(
 def ensure_model(
     model_name: str, device: str, compute_type: str, task: str
 ) -> Dict[str, object]:
-    if model_name == "whisperx":
-        if whisperx is None:
-            raise RuntimeError("whisperx is not installed. Run: pip install whisperx")
-        model = whisperx.load_model(
-            "large-v3", device=device, compute_type=compute_type, task=task
-        )
-        return {"backend": "whisperx", "model": model}
-
     if WhisperModel is None:
         raise RuntimeError(
             f"faster-whisper is not installed ({_FASTER_WHISPER_ERR}). "
@@ -394,8 +352,6 @@ def is_model_cached(model_name: str) -> bool:
         cache_dir / f"models--Systran--faster-whisper-{model_name}",
         cache_dir / f"models--openai--whisper-{model_name}",
     ]
-    if model_name == "whisperx":
-        candidates.append(cache_dir / "models--openai--whisper-large-v3")
     for repo_dir in candidates:
         snapshots = repo_dir / "snapshots"
         if snapshots.exists():
