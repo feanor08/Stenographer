@@ -838,7 +838,7 @@ def main(
                         fh.flush()
                         os.fsync(fh.fileno())
                     part.replace(out_path)
-                    log(f"OUTPUT:{out_path}")
+                    print(f"OUTPUT:{out_path}", flush=True)
                 else:
                     output_lines.append(
                         f"### {audio.name}\n{text if text else '[No speech detected]'}\n"
