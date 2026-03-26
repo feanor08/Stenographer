@@ -53,6 +53,7 @@ C = {
     "success":      "#16A34A",  # green
     "success_light":"#DCFCE7",  # light green background
     "error":        "#DC2626",  # red
+    "error_light":  "#FEE2E2",  # light red background
     "bar_track":    "#E2E8F0",  # progress bar track
     "sel_bg":       "#EFF6FF",  # hovered / selected row
 }
@@ -272,7 +273,17 @@ class TranscriberApp:
             width=20,
             primary=True,
         )
-        self.run_btn.pack()
+        self.run_btn.pack(side="left")
+
+        self.stop_btn = self._btn(
+            self.btn_row, "⏹  Stop",
+            self._stop,
+            font=(FONT, 13, "bold"),
+            pady=10,
+            width=10,
+            danger=True,
+        )
+        # revealed only during transcription
 
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x", pady=(4, 0))
 
@@ -339,14 +350,16 @@ class TranscriberApp:
 
     def _btn(self, parent, text, command,
              font=None, pady=7, width=None,
-             primary=False, success=False) -> tk.Button:
+             primary=False, success=False, danger=False) -> tk.Button:
         f = font or (FONT, 11)
         if primary:
-            bg, fg, abg, afg = C["accent"], C["accent_fg"], C["accent_hov"], C["accent_fg"]
+            bg, fg, abg, afg = C["accent"],        C["accent_fg"], C["accent_hov"], C["accent_fg"]
         elif success:
-            bg, fg, abg, afg = C["success_light"], C["success"], C["success"], C["accent_fg"]
+            bg, fg, abg, afg = C["success_light"], C["success"],   C["success"],    C["accent_fg"]
+        elif danger:
+            bg, fg, abg, afg = C["error_light"],   C["error"],     C["error"],      C["accent_fg"]
         else:
-            bg, fg, abg, afg = C["bg_card"], C["text"], C["sel_bg"], C["text"]
+            bg, fg, abg, afg = C["bg_card"],       C["text"],      C["sel_bg"],     C["text"]
 
         kw: dict = dict(
             font=f, fg=fg, bg=bg,
@@ -622,6 +635,7 @@ class TranscriberApp:
         self._output_files = []
         self.run_btn.config(state="disabled", text="Transcribing…",
                             bg=C["text_muted"], fg=C["accent_fg"])
+        self.stop_btn.pack(side="left", padx=(10, 0))
         self._result_row.pack_forget()
         self.out.config(state="normal")
         self.out.delete("1.0", "end")
@@ -673,6 +687,10 @@ class TranscriberApp:
         finally:
             self._proc = None
 
+    def _stop(self):
+        if self._proc and self._proc.poll() is None:
+            self._proc.terminate()
+
     def _on_done(self, success: bool):
         self._stop_progress_tick()
         self.transcription_start = None
@@ -685,6 +703,7 @@ class TranscriberApp:
             self.remaining_lbl.config(text="Failed", fg=C["error"])
             self.finish_at_lbl.config(text="", fg=C["text_muted"])
 
+        self.stop_btn.pack_forget()
         self.run_btn.config(state="normal", text="Transcribe",
                             bg=C["accent"], fg=C["accent_fg"])
         if success:
