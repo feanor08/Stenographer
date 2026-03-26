@@ -66,8 +66,9 @@ Mac and Linux come with Python. On Windows:
 
 **🍎 Mac / 🐧 Linux:**
 1. Unzip the downloaded folder
-2. Open **Terminal** and drag the folder into it
-3. Type `./install` and hit Enter
+2. Open **Terminal** (press `⌘ + Space`, type "Terminal", hit Enter)
+3. Type `cd ` (with a space after it), then click and drag the unzipped folder from Finder into the Terminal window — the path fills in automatically
+4. Hit Enter, then type `./install` and hit Enter again
 
 **🪟 Windows:**
 1. Unzip the downloaded folder
