@@ -665,21 +665,23 @@ def _compute_eta(done: float, total: float, elapsed: float) -> str:
 
 @app.command()
 def main(
-    zip_path:     Path           = typer.Option("audio_inputs.zip", "--zip",          help="ZIP file containing audio clips."),
-    folder_path:  Path           = typer.Option("input_audio",      "--folder",       help="Folder with audio files."),
-    extracted_dir:Path           = typer.Option("clips",            "--extracted",    help="Where to extract/process audio."),
-    output_path:  Path           = typer.Option("transcriptions.txt","--output",      help="Output text file."),
-    order:        str            = typer.Option("ctime",            "--order",        help="Sort files by 'ctime' or 'name'."),
-    model:        Optional[str]  = typer.Option(None,               "--model",        help="Whisper model size (skips interactive menu)."),
-    language:     str            = typer.Option("auto",             "--language",     help="Language code or 'auto'."),
-    task:         str            = typer.Option("transcribe",       "--task",         help="'transcribe' or 'translate'."),
-    diarize:      bool           = typer.Option(False,              "--diarize",      help="Enable speaker labeling."),
-    num_speakers: Optional[int]  = typer.Option(None,               "--num-speakers", help="Known speaker count for diarization."),
-    device:       str            = typer.Option("cpu",              "--device",       help="Device: cpu or cuda."),
-    compute_type: str            = typer.Option("int8",             "--compute-type", help="Compute type: int8|float16|float32."),
+    zip_path:     Path                = typer.Option("audio_inputs.zip",  "--zip",          help="ZIP file containing audio clips."),
+    folder_path:  Path                = typer.Option("input_audio",       "--folder",       help="Folder with audio files."),
+    extracted_dir:Path                = typer.Option("clips",             "--extracted",    help="Where to extract/process audio."),
+    output_path:  Path                = typer.Option("transcriptions.txt","--output",       help="Output file (folder/zip mode only)."),
+    order:        str                 = typer.Option("ctime",             "--order",        help="Sort files by 'ctime' or 'name'."),
+    model:        Optional[str]       = typer.Option(None,                "--model",        help="Whisper model size (skips interactive menu)."),
+    language:     str                 = typer.Option("auto",              "--language",     help="Language code or 'auto'."),
+    task:         str                 = typer.Option("transcribe",        "--task",         help="'transcribe' or 'translate'."),
+    diarize:      bool                = typer.Option(False,               "--diarize",      help="Enable speaker labeling."),
+    num_speakers: Optional[int]       = typer.Option(None,                "--num-speakers", help="Known speaker count for diarization."),
+    device:       str                 = typer.Option("cpu",               "--device",       help="Device: cpu or cuda."),
+    compute_type: str                 = typer.Option("int8",              "--compute-type", help="Compute type: int8|float16|float32."),
+    files:        Optional[List[Path]]= typer.Option(None,                "--files",        help="Individual audio files; output goes next to each source file."),
 ) -> None:
 
     run_start = time.time()
+    run_ts    = time.strftime("%Y%m%d_%H%M%S", time.localtime(run_start))
 
     # ── Input validation ───────────────────────────────────────────────────────
     if order not in {"ctime", "name"}:
@@ -696,25 +698,34 @@ def main(
         log("⚠️  FFmpeg not found. Install: brew install ffmpeg (macOS) | apt install ffmpeg (Linux)")
         raise typer.Exit(code=1)
 
-    cleanup_interrupted_run_artifacts(
-        zip_path=zip_path, extracted_dir=extracted_dir, output_path=output_path
-    )
-
     # ── Locate input ───────────────────────────────────────────────────────────
-    if zip_path.exists():
-        extract_zip(zip_path, extracted_dir)
-        input_root = extracted_dir
-    elif folder_path.exists():
-        input_root = folder_path
-        log(f"Using audio folder: {folder_path}")
-    else:
-        log("No inputs found. Place audio files in 'input_audio/' or provide 'audio_inputs.zip'.")
-        raise typer.Exit(code=1)
+    per_file_mode = bool(files)
 
-    audio_files = collect_audio_files(input_root, order=order)
-    if not audio_files:
-        log("No audio files found. Supported: " + ", ".join(sorted(AUDIO_EXTS)))
-        raise typer.Exit(code=1)
+    if per_file_mode:
+        audio_files = [
+            p.resolve() for p in files
+            if p.exists() and p.suffix.lower() in AUDIO_EXTS
+        ]
+        if not audio_files:
+            log("No valid audio files in --files list.")
+            raise typer.Exit(code=1)
+    else:
+        cleanup_interrupted_run_artifacts(
+            zip_path=zip_path, extracted_dir=extracted_dir, output_path=output_path
+        )
+        if zip_path.exists():
+            extract_zip(zip_path, extracted_dir)
+            input_root = extracted_dir
+        elif folder_path.exists():
+            input_root = folder_path
+            log(f"Using audio folder: {folder_path}")
+        else:
+            log("No inputs found. Place audio files in 'input_audio/' or provide 'audio_inputs.zip'.")
+            raise typer.Exit(code=1)
+        audio_files = collect_audio_files(input_root, order=order)
+        if not audio_files:
+            log("No audio files found. Supported: " + ", ".join(sorted(AUDIO_EXTS)))
+            raise typer.Exit(code=1)
 
     total_audio_seconds = get_total_audio_duration(audio_files)
     selected_model      = model or choose_model_menu(
@@ -740,7 +751,7 @@ def main(
         diarization_pipeline = ensure_local_diarizer(device=device)
 
     # ── Transcribe ─────────────────────────────────────────────────────────────
-    output_lines: List[str] = []
+    output_lines: List[str] = []  # used only in folder/zip mode
     failures              = 0
     transcription_start   = time.time()
     overall_total         = total_audio_seconds if total_audio_seconds > 0 else float(len(audio_files))
@@ -819,14 +830,27 @@ def main(
                 else:
                     text = format_plain_segments(segments)
 
-                output_lines.append(
-                    f"### {audio.name}\n{text if text else '[No speech detected]'}\n"
-                )
+                if per_file_mode:
+                    out_path = audio.parent / f"{audio.stem}_transcribed_{run_ts}.txt"
+                    part     = out_path.with_suffix(".txt.part")
+                    with open(part, "w", encoding="utf-8") as fh:
+                        fh.write((text if text else "[No speech detected]") + "\n")
+                        fh.flush()
+                        os.fsync(fh.fileno())
+                    part.replace(out_path)
+                    log(f"OUTPUT:{out_path}")
+                else:
+                    output_lines.append(
+                        f"### {audio.name}\n{text if text else '[No speech detected]'}\n"
+                    )
 
             except Exception as e:
                 failures += 1
                 console.print(f"  ⚠️  Failed to transcribe {rich_escape(audio.name)}: {e}")
-                output_lines.append(f"### {audio.name}\n[Error: {e}]\n")
+                if per_file_mode:
+                    log(f"  (no output file written for {audio.name})")
+                else:
+                    output_lines.append(f"### {audio.name}\n[Error: {e}]\n")
                 remaining_dur = audio_dur - file_done if audio_dur > 0 else 1.0
                 overall_done  = min(overall_total, overall_done + remaining_dur)
                 elapsed       = time.time() - transcription_start
@@ -838,15 +862,17 @@ def main(
 
     transcription_end = time.time()
 
-    # ── Write output (atomic) ──────────────────────────────────────────────────
-    part_path = partial_output_path(output_path)
-    with open(part_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(output_lines).strip() + "\n")
-        f.flush()
-        os.fsync(f.fileno())
-    part_path.replace(output_path)
-
-    log(f"Done. Wrote transcripts to: {output_path.resolve()}")
+    # ── Write output (folder/zip mode only — per-file mode writes inline) ──────
+    if not per_file_mode:
+        part_path = partial_output_path(output_path)
+        with open(part_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(output_lines).strip() + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        part_path.replace(output_path)
+        log(f"Done. Wrote transcripts to: {output_path.resolve()}")
+    else:
+        log("Done.")
     run_end = time.time()
     log(f"Start time:         {fmt_timestamp(run_start)}")
     log(f"End time:           {fmt_timestamp(run_end)}")

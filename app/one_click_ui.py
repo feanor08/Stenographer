@@ -20,7 +20,6 @@ Thread inventory
 import os
 import platform
 import re
-import shutil
 import subprocess
 import threading
 import queue
@@ -33,8 +32,6 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 from shared import MODEL_INFO, MODEL_ORDER, fmt_dur, fmt_clock
 
 PROJECT_DIR = Path(__file__).parent
-INPUT_DIR   = PROJECT_DIR / "input_audio"
-OUTPUT_FILE = PROJECT_DIR / "transcriptions.txt"
 PYTHON      = PROJECT_DIR / "venv" / "bin" / "python"
 SCRIPT      = PROJECT_DIR / "transcribe.py"
 
@@ -172,6 +169,7 @@ class TranscriberApp:
         self.root.resizable(True, False)
 
         self.selected_files: List[str] = []
+        self._output_files: List[str] = []   # paths captured from OUTPUT: lines
         self.q: queue.Queue = queue.Queue()
         self.total_audio_seconds: float = 0.0
         self.transcription_start: Optional[float] = None
@@ -615,6 +613,7 @@ class TranscriberApp:
         info  = MODEL_INFO.get(model, MODEL_INFO["medium"])
         self.estimated_total_s = info["load_s"] + self.total_audio_seconds * info["rt_mult"]
 
+        self._output_files = []
         self.run_btn.config(state="disabled", text="Transcribing…",
                             bg=C["text_muted"], fg=C["accent_fg"])
         self.open_btn.pack_forget()
@@ -630,19 +629,6 @@ class TranscriberApp:
         self.transcription_start = time.time()
         self._start_progress_tick()
 
-        # Stage files into input_audio/ — clear previous contents first so
-        # transcribe.py always sees exactly the files chosen for this run.
-        INPUT_DIR.mkdir(exist_ok=True)
-        for old in INPUT_DIR.iterdir():
-            if old.is_file():
-                old.unlink()
-        for src in self.selected_files:
-            src_path = Path(src)
-            if src_path.exists():
-                shutil.copy2(src_path, INPUT_DIR / src_path.name)
-            else:
-                self.q.put(("log", f"Warning: file not found, skipping: {src_path.name}\n"))
-
         threading.Thread(
             target=self._worker,
             args=(model, self.lang_var.get()),
@@ -650,10 +636,10 @@ class TranscriberApp:
         ).start()
 
     def _worker(self, model: str, lang: str):
-        cmd = [
-            str(PYTHON), str(SCRIPT),
-            "--model", model, "--language", lang, "--order", "name",
-        ]
+        cmd = [str(PYTHON), str(SCRIPT), "--model", model, "--language", lang]
+        for f in self.selected_files:
+            cmd += ["--files", f]
+
         # NO_COLOR + TERM=dumb suppress Rich's ANSI sequences so the console
         # widget shows plain text.  stderr=STDOUT merges child process errors.
         env = {**os.environ, "NO_COLOR": "1", "TERM": "dumb"}
@@ -664,7 +650,10 @@ class TranscriberApp:
                 cwd=str(PROJECT_DIR), env=env,
             )
             for line in self._proc.stdout:
-                self.q.put(("log", strip_ansi(line)))
+                clean = strip_ansi(line)
+                if clean.startswith("OUTPUT:"):
+                    self._output_files.append(clean[len("OUTPUT:"):].strip())
+                self.q.put(("log", clean))
             self._proc.wait()
             if self._proc.returncode == 0:
                 self.q.put(("log", "\nTranscription complete.\n"))
@@ -696,12 +685,12 @@ class TranscriberApp:
             self.open_btn.pack(pady=(0, 4))
 
     def _open_result(self):
-        if OUTPUT_FILE.exists():
-            subprocess.run(["open", str(OUTPUT_FILE)])
+        if self._output_files:
+            subprocess.run(["open", self._output_files[0]])
         else:
             messagebox.showerror(
                 "File not found",
-                f"Output file not found:\n{OUTPUT_FILE}\n\nCheck the console log above.",
+                "Output file path was not captured.\nCheck the console log above.",
             )
 
 
