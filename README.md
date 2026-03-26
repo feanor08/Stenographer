@@ -2,6 +2,8 @@
 
 A simple desktop app that turns your audio files into text — no internet required, no accounts, no subscriptions. Just drop your files in and hit go.
 
+**[⬇ Download](https://github.com/feanor08/AudioTranscriber/archive/refs/heads/main.zip)**
+
 ## Getting started
 
 **Step 1 — Install FFmpeg** (you only need to do this once)
