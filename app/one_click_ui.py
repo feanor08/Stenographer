@@ -283,7 +283,26 @@ class TranscriberApp:
             width=10,
             danger=True,
         )
-        # revealed only during transcription
+        # revealed only while transcribing
+
+        self.open_btn = self._btn(
+            self.btn_row, "✅  Open Result",
+            self._open_result,
+            font=(FONT, 13, "bold"),
+            pady=10,
+            width=16,
+            success=True,
+        )
+        # revealed only after success
+
+        self.show_btn = self._btn(
+            self.btn_row, "📂  Show in Finder",
+            self._show_in_finder,
+            font=(FONT, 13, "bold"),
+            pady=10,
+            width=18,
+        )
+        # revealed only after success
 
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x", pady=(4, 0))
 
@@ -305,24 +324,6 @@ class TranscriberApp:
             selectforeground=C["text"],
         )
         self.out.pack(fill="x")
-
-        # ── Open result / show in Finder buttons (revealed on success) ───────────
-        self._result_row = tk.Frame(self.root, bg=C["bg"], padx=24)
-        self.open_btn = self._btn(
-            self._result_row, "✅  Open Result",
-            self._open_result,
-            font=(FONT, 12),
-            pady=8,
-            width=18,
-            success=True,
-        )
-        self.show_btn = self._btn(
-            self._result_row, "📂  Show in Finder",
-            self._show_in_finder,
-            font=(FONT, 12),
-            pady=8,
-            width=18,
-        )
 
         self.root.update()
         self.root.minsize(self.root.winfo_width(), self.root.winfo_height())
@@ -635,8 +636,9 @@ class TranscriberApp:
         self._output_files = []
         self.run_btn.config(state="disabled", text="Transcribing…",
                             bg=C["text_muted"], fg=C["accent_fg"])
+        self.open_btn.pack_forget()
+        self.show_btn.pack_forget()
         self.stop_btn.pack(side="left", padx=(10, 0))
-        self._result_row.pack_forget()
         self.out.config(state="normal")
         self.out.delete("1.0", "end")
         self.out.config(state="disabled")
@@ -707,9 +709,9 @@ class TranscriberApp:
         self.run_btn.config(state="normal", text="Transcribe",
                             bg=C["accent"], fg=C["accent_fg"])
         if success:
-            self._result_row.pack(fill="x", pady=(8, 16))
-            self.open_btn.pack(side="left")
+            self.open_btn.pack(side="left", padx=(10, 0))
             self.show_btn.pack(side="left", padx=(10, 0))
+            self._open_result()  # auto-open the file
 
     def _show_in_finder(self):
         if self._output_files:
