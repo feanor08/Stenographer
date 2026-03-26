@@ -90,6 +90,20 @@ def strip_ansi(text: str) -> str:
     return ANSI_RE.sub("", text)
 
 
+def open_file(path: str):
+    if _sys == "Windows":
+        os.startfile(path)
+    else:
+        subprocess.run(["open", path])
+
+
+def show_in_file_manager(path: str):
+    if _sys == "Windows":
+        subprocess.run(["explorer", "/select,", path])
+    else:
+        subprocess.run(["open", "-R", path])
+
+
 def get_audio_duration(path: str) -> float:
     try:
         result = subprocess.run(
@@ -287,7 +301,6 @@ class TranscriberApp:
             width=10,
             danger=True,
         )
-        # revealed only while transcribing
 
         self.open_btn = self._btn(
             self.btn_row, "✅  Open Result",
@@ -297,7 +310,6 @@ class TranscriberApp:
             width=16,
             success=True,
         )
-        # revealed only after success
 
         self.show_btn = self._btn(
             self.btn_row, "📂  Show in Finder",
@@ -306,7 +318,6 @@ class TranscriberApp:
             pady=10,
             width=18,
         )
-        # revealed only after success
 
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x", pady=(4, 0))
 
@@ -696,6 +707,7 @@ class TranscriberApp:
     def _stop(self):
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
+        self._output_files = []
 
     def _on_done(self, success: bool):
         self._stop_progress_tick()
@@ -721,11 +733,7 @@ class TranscriberApp:
         if not self._output_files:
             messagebox.showerror("Not found", "Output path was not captured.")
             return
-        path = self._output_files[0]
-        if platform.system() == "Windows":
-            subprocess.run(["explorer", "/select,", path])
-        else:
-            subprocess.run(["open", "-R", path])
+        show_in_file_manager(self._output_files[0])
 
     def _open_result(self):
         if not self._output_files:
@@ -734,11 +742,7 @@ class TranscriberApp:
                 "Output file path was not captured.\nCheck the console log above.",
             )
             return
-        path = self._output_files[0]
-        if platform.system() == "Windows":
-            os.startfile(path)
-        else:
-            subprocess.run(["open", path])
+        open_file(self._output_files[0])
 
 
 def main():
