@@ -297,7 +297,6 @@ class TranscriberApp:
 
         # ── Open result / show in Finder buttons (revealed on success) ───────────
         self._result_row = tk.Frame(self.root, bg=C["bg"], padx=24)
-        self._result_row.pack(fill="x", pady=(0, 16))
         self.open_btn = self._btn(
             self._result_row, "✅  Open Result",
             self._open_result,
@@ -623,8 +622,7 @@ class TranscriberApp:
         self._output_files = []
         self.run_btn.config(state="disabled", text="Transcribing…",
                             bg=C["text_muted"], fg=C["accent_fg"])
-        self.open_btn.pack_forget()
-        self.show_btn.pack_forget()
+        self._result_row.pack_forget()
         self.out.config(state="normal")
         self.out.delete("1.0", "end")
         self.out.config(state="disabled")
@@ -690,8 +688,9 @@ class TranscriberApp:
         self.run_btn.config(state="normal", text="Transcribe",
                             bg=C["accent"], fg=C["accent_fg"])
         if success:
-            self.open_btn.pack(side="left", pady=(0, 4))
-            self.show_btn.pack(side="left", pady=(0, 4), padx=(10, 0))
+            self._result_row.pack(fill="x", pady=(8, 16))
+            self.open_btn.pack(side="left")
+            self.show_btn.pack(side="left", padx=(10, 0))
 
     def _show_in_finder(self):
         if self._output_files:
