@@ -68,22 +68,22 @@ fi
 
 # ── 5. Create the transcribe launcher ─────────────────────────────────────────
 step "Writing transcribe launcher..."
-cat > "$DIR/transcribe" << 'LAUNCHER'
+cat > "$DIR/transcribe.command" << 'LAUNCHER'
 #!/usr/bin/env bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ ! -f "$DIR/app/venv/bin/python" ]; then
-    echo "ERROR: Installation incomplete. Run ./install first." >&2
+    echo "ERROR: Installation incomplete. Run install.command first." >&2
     exit 1
 fi
 "$DIR/app/venv/bin/python" "$DIR/app/one_click_ui.py"
 LAUNCHER
-chmod +x "$DIR/transcribe"
-ok "transcribe launcher created"
+chmod +x "$DIR/transcribe.command"
+ok "transcribe.command launcher created"
 
 # ── Done ───────────────────────────────────────────────────────────────────────
 echo
 hr
 echo -e "${GRN}  ✓  INSTALL COMPLETE${NC}"
-echo -e "${YEL}     Run  ./transcribe  to open the app${NC}"
+echo -e "${YEL}     Double-click transcribe.command to open the app${NC}"
 hr
 echo

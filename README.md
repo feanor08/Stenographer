@@ -66,9 +66,7 @@ Mac and Linux come with Python. On Windows:
 
 **🍎 Mac / 🐧 Linux:**
 1. Unzip the downloaded folder
-2. Open **Terminal** (press `⌘ + Space`, type "Terminal", hit Enter)
-3. Type `cd ` (with a space after it), then click and drag the unzipped folder from Finder into the Terminal window — the path fills in automatically
-4. Hit Enter, then type `./install` and hit Enter again
+2. Double-click **`install.command`**
 
 **🪟 Windows:**
 1. Unzip the downloaded folder
@@ -80,7 +78,7 @@ You'll see some text scroll by — that's normal. Wait for it to finish.
 
 ### Step 4 — Open the app
 
-**🍎 Mac / 🐧 Linux:** Double-click **`transcribe`** or type `./transcribe` in Terminal
+**🍎 Mac / 🐧 Linux:** Double-click **`transcribe.command`**
 
 **🪟 Windows:** Double-click **`transcribe.bat`**
 
