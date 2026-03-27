@@ -72,6 +72,8 @@ C = {
     "error_light":  "#FEE2E2",  # light red background
     "bar_track":    "#E2E8F0",  # progress bar track
     "sel_bg":       "#EFF6FF",  # hovered / selected row
+    "warn_bg":      C["warn_bg"],  # amber banner background
+    "warn_fg":      C["warn_fg"],  # amber banner text
 }
 
 # Accuracy badge colours (readable on white)
@@ -310,11 +312,11 @@ class TranscriberApp:
         # Outer container always packed so inner banner appears in correct position
         _banner_outer = tk.Frame(self.root, bg=C["bg"])
         _banner_outer.pack(fill="x")
-        self._update_banner = tk.Frame(_banner_outer, bg="#FEF3C7")
-        banner_inner = tk.Frame(self._update_banner, bg="#FEF3C7", padx=24, pady=8)
+        self._update_banner = tk.Frame(_banner_outer, bg=C["warn_bg"])
+        banner_inner = tk.Frame(self._update_banner, bg=C["warn_bg"], padx=24, pady=8)
         banner_inner.pack(fill="x")
         self._update_label = tk.Label(
-            banner_inner, text="", bg="#FEF3C7", fg="#92400E", font=(FONT, 11),
+            banner_inner, text="", bg=C["warn_bg"], fg=C["warn_fg"], font=(FONT, 11),
         )
         self._update_label.pack(side="left")
         self._btn(
@@ -327,31 +329,28 @@ class TranscriberApp:
         ).pack(side="left", padx=(8, 0))
 
         # ── FFmpeg warning banner (shown immediately if ffmpeg is missing) ────
-        _ffmpeg_outer = tk.Frame(self.root, bg=C["bg"])
-        _ffmpeg_outer.pack(fill="x")
         if not shutil.which("ffmpeg"):
-            has_brew = shutil.which("brew") is not None
-            if has_brew:
-                install_cmd = "brew install ffmpeg"
-                brew_note   = ""
-            else:
-                install_cmd = "brew install ffmpeg"
-                brew_note   = (
+            install_cmd = "brew install ffmpeg"
+            brew_note = (
+                ""
+                if shutil.which("brew")
+                else (
                     "  (Homebrew not found — install it first:\n"
                     "   /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com"
                     "/Homebrew/install/HEAD/install.sh)\")"
                 )
+            )
             msg = (
                 "⚠  FFmpeg not found — time estimates are unavailable. "
                 "Transcription will still work.\n"
                 f"   To enable estimates, open Terminal and run:  {install_cmd}"
                 + (f"\n{brew_note}" if brew_note else "")
             )
-            ffmpeg_inner = tk.Frame(_ffmpeg_outer, bg="#FEF3C7", padx=24, pady=10)
-            ffmpeg_inner.pack(fill="x")
+            ffmpeg_banner = tk.Frame(self.root, bg=C["warn_bg"], padx=24, pady=10)
+            ffmpeg_banner.pack(fill="x")
             tk.Label(
-                ffmpeg_inner, text=msg,
-                bg="#FEF3C7", fg="#92400E",
+                ffmpeg_banner, text=msg,
+                bg=C["warn_bg"], fg=C["warn_fg"],
                 font=(FONT, 10), justify="left", anchor="w",
             ).pack(side="left")
 
