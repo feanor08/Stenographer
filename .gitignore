@@ -17,3 +17,4 @@ app/input_audio/
 
 # macOS
 .DS_Store
+temp/
