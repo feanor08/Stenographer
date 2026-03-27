@@ -2,7 +2,8 @@
 # Run with:  pyinstaller stenographer.spec
 # or via:    ./build_dmg.sh
 
-from PyInstaller.building.api import PYZ, EXE, COLLECT, BUNDLE
+from PyInstaller.building.api import PYZ, EXE, COLLECT
+from PyInstaller.building.osx import BUNDLE
 from PyInstaller.building.build_main import Analysis
 
 # Hidden imports required by faster-whisper / ctranslate2
