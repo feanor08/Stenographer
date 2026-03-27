@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════
-#   AUDIO TRANSCRIBER — Installer
+#   STENOGRAPHER — Installer
 # ══════════════════════════════════════════════════════
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP="$DIR/app"
@@ -33,6 +33,19 @@ if command -v python3 &>/dev/null; then
     ok "Found $PY_VER"
 else
     die "Python 3 not found. Install from https://python.org and re-run."
+fi
+
+# ── 1b. tkinter ────────────────────────────────────────────────────────────────
+step "Checking tkinter..."
+if python3 -c "import tkinter" &>/dev/null; then
+    ok "tkinter available"
+else
+    warn "tkinter not found in your Python installation."
+    echo -e "  ${DIM}This is common with Homebrew Python. Fix with:${NC}"
+    echo -e "  ${YEL}  brew install python-tk${NC}"
+    echo -e "  ${DIM}Or download Python from https://python.org (includes tkinter).${NC}"
+    echo -e "  ${DIM}Then delete app/venv/ and re-run this installer.${NC}"
+    die "tkinter is required to run Stenographer."
 fi
 
 # ── 2. Virtual environment ─────────────────────────────────────────────────────
