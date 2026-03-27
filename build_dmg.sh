@@ -11,7 +11,7 @@ step() { echo -e "\n${YEL}▸ $1${NC}"; }
 ok()   { echo -e "  ${GRN}✓ $1${NC}"; }
 die()  { echo -e "  ${RED}✗ $1${NC}"; exit 1; }
 
-VERSION="1.0.0"
+VERSION="${BUILD_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")}"
 DIST="$DIR/dist"
 APP="$DIST/Stenographer.app"
 DMG_STAGE="$DIST/dmg_stage"

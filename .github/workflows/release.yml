@@ -1,0 +1,66 @@
+name: Build & Release DMG
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.0.1) — defaults to tag name"
+        required: false
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write   # needed to create releases and upload assets
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Homebrew dependencies
+        run: |
+          brew install create-dmg ffmpeg
+
+      - name: Create venv and install packages
+        run: |
+          python3 -m venv app/venv
+          app/venv/bin/pip install --upgrade pip
+          app/venv/bin/pip install \
+            "click>=8.1.7" \
+            "faster-whisper>=1.0.0" \
+            "rich>=13.7.0" \
+            "typer>=0.12.0" \
+            "pillow" \
+            "pyinstaller"
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          echo "VERSION=$V" >> "$GITHUB_OUTPUT"
+          echo "Building version $V"
+
+      - name: Build DMG
+        run: BUILD_VERSION="${{ steps.ver.outputs.VERSION }}" ./build_dmg.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Stenographer v${{ steps.ver.outputs.VERSION }}"
+          tag_name: "${{ github.ref_name }}"
+          generate_release_notes: true
+          files: "dist/Stenographer-${{ steps.ver.outputs.VERSION }}.dmg"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
