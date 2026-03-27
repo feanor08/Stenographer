@@ -20,6 +20,7 @@ Thread inventory
 import json
 import os
 import platform
+import shutil
 import sys
 import re
 import subprocess
@@ -324,6 +325,35 @@ class TranscriberApp:
             banner_inner, "Dismiss", self._dismiss_update,
             font=(FONT, 10), pady=4,
         ).pack(side="left", padx=(8, 0))
+
+        # ── FFmpeg warning banner (shown immediately if ffmpeg is missing) ────
+        _ffmpeg_outer = tk.Frame(self.root, bg=C["bg"])
+        _ffmpeg_outer.pack(fill="x")
+        if not shutil.which("ffmpeg"):
+            has_brew = shutil.which("brew") is not None
+            if has_brew:
+                install_cmd = "brew install ffmpeg"
+                brew_note   = ""
+            else:
+                install_cmd = "brew install ffmpeg"
+                brew_note   = (
+                    "  (Homebrew not found — install it first:\n"
+                    "   /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com"
+                    "/Homebrew/install/HEAD/install.sh)\")"
+                )
+            msg = (
+                "⚠  FFmpeg not found — time estimates are unavailable. "
+                "Transcription will still work.\n"
+                f"   To enable estimates, open Terminal and run:  {install_cmd}"
+                + (f"\n{brew_note}" if brew_note else "")
+            )
+            ffmpeg_inner = tk.Frame(_ffmpeg_outer, bg="#FEF3C7", padx=24, pady=10)
+            ffmpeg_inner.pack(fill="x")
+            tk.Label(
+                ffmpeg_inner, text=msg,
+                bg="#FEF3C7", fg="#92400E",
+                font=(FONT, 10), justify="left", anchor="w",
+            ).pack(side="left")
 
         # ── File picker ────────────────────────────────────────────────────────
         file_section = self._card(self.root, title="Audio Files")
