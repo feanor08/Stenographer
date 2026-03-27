@@ -8,7 +8,7 @@ import json
 import urllib.request
 from typing import Optional, Tuple
 
-REPO         = "feanor08/AudioTranscriber"
+REPO         = "feanor08/Stenographer"
 API_URL      = f"https://api.github.com/repos/{REPO}/commits/main"
 DOWNLOAD_URL = f"https://github.com/{REPO}/archive/refs/heads/main.zip"
 

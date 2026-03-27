@@ -2,7 +2,7 @@
 
 > Turn any audio file into text — no internet, no accounts, no subscriptions. Just press go.
 
-**[⬇️ Download](https://github.com/feanor08/AudioTranscriber/archive/refs/heads/main.zip)**
+**[⬇️ Download](https://github.com/feanor08/Stenographer/archive/refs/heads/main.zip)**
 
 ---
 
