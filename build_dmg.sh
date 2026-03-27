@@ -17,7 +17,7 @@ APP="$DIST/Stenographer.app"
 DMG_STAGE="$DIST/dmg_stage"
 DMG_OUT="$DIST/Stenographer-${VERSION}.dmg"
 
-clear; hr
+[ -t 1 ] && clear; hr
 echo -e "${YEL}      ▶  STENOGRAPHER  build v${VERSION} ◀${NC}"
 hr
 
