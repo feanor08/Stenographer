@@ -20,6 +20,7 @@ Thread inventory
 import json
 import os
 import platform
+import sys
 import re
 import subprocess
 import threading
@@ -34,12 +35,20 @@ from shared import MODEL_INFO, MODEL_ORDER, fmt_dur, fmt_clock
 import updater
 
 PROJECT_DIR = Path(__file__).parent
-PYTHON      = (
-    PROJECT_DIR / "venv" / "Scripts" / "python.exe"
-    if platform.system() == "Windows"
-    else PROJECT_DIR / "venv" / "bin" / "python"
-)
-SCRIPT      = PROJECT_DIR / "transcribe.py"
+
+if getattr(sys, "frozen", False):
+    # Running inside a PyInstaller .app bundle.
+    # The GUI executable and the 'transcribe' helper are siblings in MacOS/.
+    _bundle_dir = Path(sys.executable).parent
+    PYTHON = _bundle_dir / "transcribe"
+    SCRIPT: Optional[Path] = None          # transcribe is a standalone binary
+else:
+    PYTHON = (
+        PROJECT_DIR / "venv" / "Scripts" / "python.exe"
+        if platform.system() == "Windows"
+        else PROJECT_DIR / "venv" / "bin" / "python"
+    )
+    SCRIPT = PROJECT_DIR / "transcribe.py"
 
 MODELS    = MODEL_ORDER
 LANGUAGES = ["auto", "en", "hi", "ta", "fr", "es", "de", "zh", "ja", "ko", "ar", "pt", "ru"]
@@ -773,7 +782,7 @@ class TranscriberApp:
         if not PYTHON.exists():
             messagebox.showerror(
                 "Not installed",
-                f"Python environment not found at:\n{PYTHON}\n\nRun  ./install  first.",
+                f"Transcriber not found at:\n{PYTHON}\n\nRun  ./install.command  first.",
             )
             return
 
@@ -813,7 +822,11 @@ class TranscriberApp:
         ).start()
 
     def _worker(self, model: str, lang: str, fmt: str):
-        cmd = [str(PYTHON), str(SCRIPT), "--model", model, "--language", lang, "--format", fmt]
+        cmd = (
+            [str(PYTHON), "--model", model, "--language", lang, "--format", fmt]
+            if SCRIPT is None
+            else [str(PYTHON), str(SCRIPT), "--model", model, "--language", lang, "--format", fmt]
+        )
         for f in self.selected_files:
             cmd += ["--files", f]
 

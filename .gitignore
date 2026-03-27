@@ -18,3 +18,7 @@ app/input_audio/
 # macOS
 .DS_Store
 temp/
+
+# PyInstaller build outputs
+build/
+dist/
