@@ -16,15 +16,13 @@ The transcribed text file is saved right next to your original audio file — yo
 
 ## 🚀 Getting started
 
-There are 3 steps to get it running. You only do steps 1 and 2 **once, ever**.
+There are 3 steps to get it running. You only do steps 1 and 2 **once, ever**. (Mac only)
 
 ---
 
 ### Step 1 — Install FFmpeg
 
 FFmpeg is a free tool that helps read audio files. You just need to install it once.
-
-**🍎 On a Mac:**
 
 1. Open **Terminal** (press `⌘ + Space`, type "Terminal", hit Enter)
 2. Paste this and hit Enter:
@@ -36,35 +34,10 @@ FFmpeg is a free tool that helps read audio files. You just need to install it o
    > /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    > ```
 
-**🪟 On Windows:**
-
-1. Go to [ffmpeg.org/download.html](https://ffmpeg.org/download.html) and download the Windows build
-2. Unzip it somewhere easy to find (e.g. `C:\ffmpeg`)
-3. Add it to your PATH:
-   - Search for **"Edit the system environment variables"** in the Start menu
-   - Click **Environment Variables** → find **Path** → click **Edit**
-   - Click **New** and add the path to the `bin` folder inside ffmpeg (e.g. `C:\ffmpeg\bin`)
-   - Click OK on everything and restart any open windows
-
-**🐧 On Linux (Ubuntu/Debian):**
-```
-sudo apt install ffmpeg
-```
-
 ---
 
-### Step 2 — Install Python (Windows only)
+### Step 2 — Run the installer
 
-Mac and Linux come with Python. On Windows:
-
-1. Go to [python.org/downloads](https://www.python.org/downloads/) and download Python 3
-2. Run the installer — **make sure to tick "Add Python to PATH"** before clicking Install
-
----
-
-### Step 3 — Run the installer
-
-**🍎 Mac:**
 1. Unzip the downloaded folder
 2. **Right-click** `install.command` → click **Open**
 3. A warning will pop up saying Apple can't verify the developer — click **Open** (or **Open Anyway**)
@@ -73,26 +46,13 @@ Mac and Linux come with Python. On Windows:
 >
 > If you don't see an "Open" option in the warning, go to **System Settings → Privacy & Security** and click **"Open Anyway"** near the bottom.
 
-**🐧 Linux:**
-1. Unzip the downloaded folder
-2. Double-click **`install.command`**
-
-**🪟 Windows:**
-1. Unzip the downloaded folder
-2. Double-click **`install.bat`**
-3. If Windows SmartScreen appears, click **"More info"** → **"Run anyway"**
-
 You'll see some text scroll by — that's normal. Wait for it to finish.
 
 ---
 
-### Step 4 — Open the app
+### Step 3 — Open the app
 
-**🍎 Mac:** Right-click **`transcribe.command`** → **Open** (same one-time step as above)
-
-**🐧 Linux:** Double-click **`transcribe.command`**
-
-**🪟 Windows:** Double-click **`transcribe.bat`**
+Right-click **`transcribe.command`** → **Open** (same one-time step as above)
 
 A window will pop up and you're ready to go! ✅
 
