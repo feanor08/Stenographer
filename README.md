@@ -2,7 +2,7 @@
 
 > Turn any audio file into text — no internet, no accounts, no subscriptions. Just press go.
 
-**[⬇️ Download](https://github.com/feanor08/Stenographer/archive/refs/heads/main.zip)**
+**[⬇️ Download the latest DMG](https://github.com/feanor08/Stenographer/releases/latest)**
 
 ---
 
@@ -16,47 +16,37 @@ The transcribed text file is saved right next to your original audio file — yo
 
 ## 🚀 Getting started
 
-There are 3 steps to get it running. You only do steps 1 and 2 **once, ever**. (Mac only)
+Two steps, both done **once, ever**. (Mac only)
 
 ---
 
-### Step 1 — Install FFmpeg
+### Step 1 — Download & install
 
-FFmpeg is a free tool that helps read audio files. You just need to install it once.
+1. Click the download link above and open the `.dmg`
+2. Drag **Stenographer** into your **Applications** folder
+3. Open it — a warning will pop up saying Apple can't verify the developer
 
-1. Open **Terminal** (press `⌘ + Space`, type "Terminal", hit Enter)
+> ⚠️ **Why the warning?** Mac blocks apps downloaded from the internet by default. To get past it:
+> - Right-click the app → **Open** → **Open**
+> - Or go to **System Settings → Privacy & Security** → **Open Anyway**
+>
+> You only need to do this once.
+
+---
+
+### Step 2 — Install FFmpeg *(optional but recommended)*
+
+FFmpeg lets the app show you how long transcription will take before you start. Without it the app still works — just no time estimate.
+
+1. Open **Terminal** (`⌘ + Space`, type "Terminal", hit Enter)
 2. Paste this and hit Enter:
    ```
    brew install ffmpeg
    ```
-   > Don't have Homebrew? First run this, then come back:
+   > Don't have Homebrew? Run this first, then repeat step 2:
    > ```
    > /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    > ```
-
----
-
-### Step 2 — Run the installer
-
-1. Unzip the downloaded folder
-2. **Right-click** `install.command` → click **Open**
-3. A warning will pop up saying Apple can't verify the developer — click **Open** (or **Open Anyway**)
-
-> ⚠️ **Why the warning?** Mac blocks scripts downloaded from the internet by default. Right-clicking and choosing Open lets you bypass this — it's a one-time thing.
->
-> If you don't see an "Open" option in the warning, go to **System Settings → Privacy & Security** and click **"Open Anyway"** near the bottom.
-
-You'll see some text scroll by — that's normal. Wait for it to finish.
-
----
-
-### Step 3 — Open the app
-
-Right-click **`transcribe.command`** → **Open** (same one-time step as above)
-
-A window will pop up and you're ready to go! ✅
-
-> 💡 After the first time, you can just double-click normally — the warning only appears once.
 
 ---
 
