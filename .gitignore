@@ -22,3 +22,7 @@ temp/
 # PyInstaller build outputs
 build/
 dist/
+
+# Icon build intermediates
+assets/icon.iconset/
+assets/icon_transparent.png
