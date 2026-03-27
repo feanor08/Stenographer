@@ -31,6 +31,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from shared import MODEL_INFO, MODEL_ORDER, fmt_dur, fmt_clock
+import updater
 
 PROJECT_DIR = Path(__file__).parent
 PYTHON      = (
@@ -256,6 +257,7 @@ class TranscriberApp:
         _apply_style()
         self._build_ui()
         self._poll()
+        threading.Thread(target=self._check_for_update, daemon=True).start()
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -293,6 +295,26 @@ class TranscriberApp:
                  fg=C["text_muted"]).pack(anchor="w", pady=(3, 0))
 
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x")
+
+        # ── Update banner (hidden until an update is detected) ─────────────────
+        # Outer container always packed so inner banner appears in correct position
+        _banner_outer = tk.Frame(self.root, bg=C["bg"])
+        _banner_outer.pack(fill="x")
+        self._update_banner = tk.Frame(_banner_outer, bg="#FEF3C7")
+        banner_inner = tk.Frame(self._update_banner, bg="#FEF3C7", padx=24, pady=8)
+        banner_inner.pack(fill="x")
+        self._update_label = tk.Label(
+            banner_inner, text="", bg="#FEF3C7", fg="#92400E", font=(FONT, 11),
+        )
+        self._update_label.pack(side="left")
+        self._btn(
+            banner_inner, "⬇  Download update", self._open_download,
+            font=(FONT, 10), pady=4,
+        ).pack(side="left", padx=(16, 0))
+        self._btn(
+            banner_inner, "Dismiss", self._dismiss_update,
+            font=(FONT, 10), pady=4,
+        ).pack(side="left", padx=(8, 0))
 
         # ── File picker ────────────────────────────────────────────────────────
         file_section = self._card(self.root, title="Audio Files")
@@ -730,6 +752,12 @@ class TranscriberApp:
                 elif kind == "duration":
                     self.total_audio_seconds = payload
                     self._refresh_estimates()
+                elif kind == "update_available":
+                    self._show_update_banner(payload)
+                elif kind == "update_seen":
+                    # No update, but store the latest date for future comparisons
+                    self._settings["known_commit_date"] = payload
+                    save_settings(self._settings)
         except queue.Empty:
             pass
         self._poll_id = self.root.after(40, self._poll)
@@ -856,6 +884,38 @@ class TranscriberApp:
             self._open_result()  # auto-open the file
         if self._failed_files:
             self.retry_btn.pack(side="left", padx=(10, 0))
+
+    def _check_for_update(self):
+        known = self._settings.get("known_commit_date")
+        available, latest = updater.check(known)
+        if latest is None:
+            return  # network failure — stay silent
+        if available:
+            self.q.put(("update_available", latest))
+        else:
+            self.q.put(("update_seen", latest))
+
+    def _show_update_banner(self, latest_date: str):
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(latest_date[:10], "%Y-%m-%d")
+            label = f"⬆  Update available — released {dt.strftime('%b %d, %Y')}"
+        except Exception:
+            label = "⬆  Update available"
+        self._update_label.config(text=label)
+        self._update_banner.pack(fill="x")
+        self._pending_update_date = latest_date
+
+    def _dismiss_update(self):
+        self._update_banner.pack_forget()
+        date = getattr(self, "_pending_update_date", None)
+        if date:
+            self._settings["known_commit_date"] = date
+            save_settings(self._settings)
+
+    def _open_download(self):
+        import webbrowser
+        webbrowser.open(updater.DOWNLOAD_URL)
 
     def _retry(self):
         if not self._failed_files:
