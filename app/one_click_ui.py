@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-One-click GUI for Audio Transcriber.
+One-click GUI for Stenographer.
 
 Architecture
 ------------
@@ -106,7 +106,7 @@ def show_in_file_manager(path: str):
         subprocess.run(["open", "-R", path])
 
 
-SETTINGS_FILE = Path.home() / ".audio_transcriber_settings.json"
+SETTINGS_FILE = Path.home() / ".stenographer_settings.json"
 
 
 def load_settings() -> dict:
@@ -238,7 +238,7 @@ def _apply_style():
 class TranscriberApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Audio Transcriber")
+        self.root.title("Stenographer")
         self.root.configure(bg=C["bg"])
         self.root.resizable(True, True)
 
@@ -286,7 +286,7 @@ class TranscriberApp:
         hdr_inner = tk.Frame(hdr, bg=C["bg_card"], padx=24, pady=20)
         hdr_inner.pack(fill="x")
 
-        tk.Label(hdr_inner, text="Audio Transcriber",
+        tk.Label(hdr_inner, text="Stenographer",
                  font=(FONT, 20, "bold"), bg=C["bg_card"],
                  fg=C["text_hi"]).pack(anchor="w")
         tk.Label(hdr_inner,

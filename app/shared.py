@@ -1,5 +1,5 @@
 """
-shared.py — single source of truth for Audio Transcriber.
+shared.py — single source of truth for Stenographer.
 
 Imported by both one_click_ui.py and transcribe.py so that model
 constants, audio extensions, and time-formatting helpers are never

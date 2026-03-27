@@ -20,7 +20,7 @@ def fetch_latest_commit_date() -> Optional[str]:
             API_URL,
             headers={
                 "Accept":     "application/vnd.github+json",
-                "User-Agent": "AudioTranscriber",
+                "User-Agent": "Stenographer",
             },
         )
         with urllib.request.urlopen(req, timeout=8) as resp:

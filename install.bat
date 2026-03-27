@@ -7,7 +7,7 @@ set "VENV=%APP%\venv"
 
 echo.
 echo ============================================
-echo    AUDIO TRANSCRIBER - Installer
+echo    STENOGRAPHER - Installer
 echo ============================================
 echo.
 

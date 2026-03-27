@@ -1,4 +1,4 @@
-# 🎙️ Audio Transcriber
+# 🎙️ Stenographer
 
 > Turn any audio file into text — no internet, no accounts, no subscriptions. Just press go.
 

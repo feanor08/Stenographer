@@ -22,7 +22,7 @@ die()  { echo -e "  ${RED}✗ $1${NC}"; exit 1; }
 
 clear
 hr
-echo -e "${YEL}      ▶  AUDIO TRANSCRIBER  ◀${NC}"
+echo -e "${YEL}      ▶  STENOGRAPHER  ◀${NC}"
 echo -e "${DIM}         installer v1.0${NC}"
 hr
 
@@ -84,6 +84,6 @@ ok "transcribe.command launcher created"
 echo
 hr
 echo -e "${GRN}  ✓  INSTALL COMPLETE${NC}"
-echo -e "${YEL}     Double-click transcribe.command to open the app${NC}"
+echo -e "${YEL}     Double-click transcribe.command to open Stenographer${NC}"
 hr
 echo

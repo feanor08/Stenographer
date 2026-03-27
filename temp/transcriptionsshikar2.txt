@@ -1,0 +1,299 @@
+### 11-31-26.m4a
+5 लोग
+एक जो रोशने
+एक जो रोशने
+एक जो रोशने
+2 लोग
+घोश पैचर और लेंबा
+हाँ
+आप देखते हैं जो लोग
+44
+स्लाइट 44
+ओके
+28
+रोशने
+पुछ शमरी आपा शमरी आपा नहीं आपा
+So if you look at the all this cited prior arts collectively
+like from patent A to patent I, which you have mentioned here
+so collectively what are the features that are not displayed in any of the prior art?
+How they are doing negative zones?
+I don't think anyone is using GPS to do negative zones
+They are doing avoidance behaviour
+that means that on a road if you are going
+if they are in front of you
+they do avoidance behaviour
+they are using the person using the avoidance behavior to take this
+i am saying we use this gps patch which nobody is using
+what's the difference what advantages would it give because it's the other way of
+saying the same thing like no right avoidance behavior could
+mean a lot of false positives okay right for example a broken down
+vehicle right it's not necessarily it'll be here
+right now the next day will not be here but for me this is always going to be
+there but if we say that particular vehicle is
+avoiding this particular patch of road and how they're detecting also is
+different important how they're detecting here is maybe through imu or
+how they're turning steering or something is how they are detecting
+so they are looking at the trajectory data basically the number of vehicles
+that are passing through if you look at they very specifically they're saying
+avoidance behavior is what they're looking at
+so avoidance behavior is what especially translates into this what you are saying
+isn't it so uh how do i say this um one is your
+avoidance behavior is what especially translates into this what you are saying
+avoidance behavior is what especially translates into this what you are saying
+is that second i am saying that if i have 100
+is that second i am saying that if i have 100
+is that second i am saying that if i have 100 gps points nobody is touching these
+gps points nobody is touching these
+gps points nobody is touching these two gps points
+two gps points
+two gps points so that is what essentially the avoidance
+so that is what essentially the avoidance
+so that is what essentially the avoidance behavior is is it that is implied what
+behavior is is it that is implied what
+behavior is is it that is implied what you are saying
+you are saying
+you are saying is it not necessarily
+is it not necessarily
+is it not necessarily i mean how exactly
+i mean how exactly
+i mean how exactly so if you say that i am looking not
+so if you say that i am looking not
+not looking at the avoidance behavior but instead for example for example if if I see this in front of me
+right I may do this yes but I may do this also in this way this will never be you cannot identify
+this if this is not avoidance behavior because I've seen it from far and I'm going to adjust for it
+right now it will not look like avoidance behavior but again according to your approach then the area
+of the road that is not reverse again will be this correct it will be this but the more vehicles keep
+going I will be able to punctuate to the correct area that I want but same applies here also like
+two vehicles go using this trajectory and like 10 vehicles go using this trajectory again you
+are able to narrow down to this particular point okay so I'm trying to understand the exact
+difference and what that difference is and what are the advantages that we are getting out of it
+because it should not be the
+the thing that we are saying the same thing in a different manner so that the advantages that we
+are proposing are implied from the advantages that are already disclosed in the invention in
+the prior act so that is the objective it should be something concrete substantial that should be
+providing some inventive step it should not be obvious like not the same thing yeah you're
+seeing this very obvious yeah yeah because by using both the approaches I mean we are able to
+narrow down at this point only the
+limitations that we are getting in your this trajectory is also that we are getting in your
+method also and also something you mentioned about that monitoring particular cells on the road like
+segmentation of the road segment and yes tracking those particular cells into which vehicles are not
+reversing correct so using that approach if there is any substance there like what the advantage is
+using that approach because essentially it's the same process but using that specific approach not
+vehicle travel cell or trajectory data as a whole but instead monitoring some particular segments of
+the road or cells of the road okay because that I read in your slides that it's very much emphasized
+upon the polygonization right convert the avoided region into real polygons slide 42 auto drone has
+our polygons drop up in we because if you see the cited prior act first that I have shared in the report and
+mapping has been provided in Excel file so pretty much everything it discloses like the same method flow
+uh the same approach of identifying the road segment which is having the obstacle
+and also the subsequent steps like alerting and then monitoring then slowly that obstacle will die
+down if the vehicles begin traversing that if you have anything you should focus on take a deep look
+at either if you're saying it's a polygon one then let me just take a look at that yeah I mean that is
+I think we can bring in to bring uh have some inventive stuff here okay because if you see that
+sending the data telemetry data from vehicle to the cloud is very much obvious it's just the
+transmittance of data nothing new there using the known sensors and detecting by the cloud hazard
+zone here the detection and this approach is there but the method that we are specifically using in
+that detection and if that method provides some advantages to it then we can look at this invention
+on that particular method because the earlier prior art were disclosing this approach however
+their method lacks something and with our new method which we are proposing we are overcoming
+the limitations of the prior because we are getting such and such advantages and then monitoring then
+confidence code is very much there alerting it is also there so the approach we can have a look at
+okay so if you can prepare a detailed flow I mean how are we actually looking at that thing this is
+basically this one right so patent day assumes an obstacle registration point and collects
+behavior around that point right it is fundamentally point first not discover a hole anywhere in the
+lane corridor patents BCD are avoidance behavior first the essentially IMU right then conclude uh
+obstacle
+is in this section okay uh patent E is about detecting back and forth steering and inferring
+an obstacle obstacle like isn't they do this and come back and then you realize that that is that
+uh H is no H I think is not at all for us it's a emergency flood the kind of thing mainly that
+and I is a a driver behavior path for this one so you see if patent day really is matching with
+mine they are saying that instead of waiting for somebody to hit a
+goal we will watch where vehicles don't go and uh patent day assumes that an obstacle registration
+point and collects behavior around that point and then calculates actual existence probability but
+patent a watches for the avoidance behavior for multiple vehicles if multiple vehicles have
+particular avoiding particular patch of road then it interprets at some obstacle okay so that is
+very much similar to our approach also because we are also looking for the same thing ghost patches
+uh we don't have a single driver we do only when sure this is just my paper sorry uh does uh
+patent a does confidence scores and it's built around an obstacle point behavior
+queues is a verifier and a boundary sharpener which you are seeing is not the is not a primary
+code thing no I'm just saying I'm going to use behavior as strengthening score but not uh behavior
+बम сकते हैं? मेरे बाद जिरूर बच्को किसी को सहना dissipate करता हुआ है.
+वो हमारे विकस्टा पर दिखा� канал के बखाई रहते हैं।
+दूसरे पर हचार की झाली के पेले बनाया जाएं。
+प्रयार प्रिपर सच कांड फ्रॉम ट्राइप यूज द की फीचर्स ऑनलीट वीडियो प्रोट्टी एसपोक पेस्टर यूज द न्यू थिंग वैरेडिफिकल्ट बिकॉज कों दोस्ट है नॉट फैल्ड
+but at the start of the search if you think that some points have been missed out because there are quite a thing which are new here which I see
+so if you wish to include them as well in the search in the moment I send you the key features for your review then you can add into that
+so that whenever I am performing the search I cover those features in the first cut of the search only
+and also just summarize the things which are not in the prior art collectively
+in two or three pointers like the
+I started doing that in the last slide I think I have captured that
+last two slides I have essentially captured that
+no again it is a patent is specific
+what I want is collectively patent 1,2,3,4 so many like however number of patent I have cited
+so all these cited patents do not disclose below points 0.1,0.2,0.3
+so collectively these
+no no I have continued no not like this you mean
+no so this is the patent specific summary that you have provided
+right and then I have said
+now where are the
+something like this but more a refined version
+where we have some specific key features
+so that if I want to perform the search on it again
+on the new features I have ready it
+now on the right time lane
+so here I think I had a very exhaustive list of key features for the search
+so here if you can explain
+according to you because I haven't gone into these prior art into much detail
+so what I was
+we will do is
+we wanted a multi what do you say vehicle
+a pack a vehicle pack right
+but we are not doing vehicle pack
+right so what we try to do is
+I am here I am supposed to go here
+okay right first things first
+this is not safe for me so I will try to avoid it
+if there are no vehicles behind me okay
+now when does this become hazardous is when vehicles are behind me
+okay so if I know that
+this vehicle is going in this way and has to take this turn
+and there are other vehicles behind me who want to take the same turn
+I temporarily form a pack for this vehicle
+okay
+the pack will include all the vehicles which are
+intending to take the same turn
+same turn or follow in
+or follow in that direction essentially
+this turn or the next turn they need to be here
+okay okay right
+that it forms a very temporary pack
+and here and
+once all vehicles are here if we see that
+safely yes he can't do this he has to go back
+he will continue front but you realize that
+no this is the point that you have to take
+right and I have a line of vehicles
+we will start moving all the vehicles from the
+back side to the front to the right
+okay that is what we have done okay
+and in this what is the
+overlap with the prior art because prior art
+also disclosed like
+there were quite a few which disclosed about the
+pack level in transitioning
+all of them have a have a pack
+in which they are saying that they start all
+of the vehicles are starting from here and ending up from here
+okay they are not talking about a temporary pack
+all of them have to go the same
+origin same destination okay that's their
+pack okay right here
+we our pack is in
+that road segment depending on the action
+okay
+so we dynamically form packs
+but dynamic formation of the pack I believe was
+there in the prior art one it is there but
+not a segment wise thing
+okay what exactly you mean by
+the segment wise thing
+in a pack of consider three actions
+on the road that you have to take the first
+action is entry here second action is you have to take here
+and then third action is here okay okay so
+this road segment at the entry and the
+exit first and the last action
+becomes my segment okay
+and between that so it is like
+intention specific correct
+if three vehicles intend to do
+this yes we will form a pack
+and then we will
+get them three in a line move the back one first
+move the back one then you move the front one
+okay I think it was there
+I am just familiar
+there are some unmanned vehicle things
+yeah because this lane
+transitioning you will find lot
+of prior art in this fleet monitoring
+autonomous vehicles
+the second prior art this is about
+dynamic platoon formation and
+they must be using some criteria for
+forming the platoon dynamically
+there has to be some criteria
+this US 751
+Tonji University dynamic evolution
+and coordination methods right
+the overlap is covers dynamic
+group life cycle operations
+joint leave merge split our patent
+remains distinct because its group
+formation is specifically constrained to the same
+segment and same upcoming behavior
+upcoming maneuver window
+and is used to execute
+concrete lane change
+sequence
+our patent novelty sits in maneuver
+scoped pack difficulty
+amplification and
+threshold gating to decide coordinated guidance
+our patent integrates
+route level
+maneuver difficulty into route choice
+patent b does not describe
+route selection using maneuver difficulty scoring
+this patent is essentially for a swarm
+like you think
+Sachabur to wherever everybody
+is in a swarm how do they do that is all they talk about
+it is about heavy traffic on the road
+so if you look at the list of the key features
+so what are the key features that you think
+that collectively none of the prior art disclosed
+these are the key features which you provided
+to search on this
+after the pivot also we did this
+after the pivot i dont think we did a
+psh
+thats true
+this is the first one that we did
+no this is the second one
+first one was about individual vehicle
+in the second cut we
+transition to the group of vehicles
+so this is for the group of vehicles
+what we are discussing
+so among these
+key features what are the
+parts of the key features that are collectively
+not disclosed in each of the prior art or either
+of the prior art that i have cited
+so that i can mark them and
+analyze them from a point of view of
+inventors step
+this one no
+yeah yeah yeah
+you can just copy and paste it
+in a word file or in a google
+docs and just highlight the parts of the
+key features that you think are not disclosed
+in any of the prior art
+i will do this in youtube
+i will give you a matrix
+not essentially a matrix
+because matrix wont be required in that case
+like this i will give you one
+no no so if you will make this then
+it will be always no no no because you will only
+select the features which are not in any of the prior art
+no no i am saying i will put those features particularly
+ok ok
+i will put those features ok ok
+anything else
+ok then you share this video
+and also for the
+clear dimension that
+i will share
+thanks you

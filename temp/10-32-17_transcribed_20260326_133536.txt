@@ -1,0 +1,421 @@
+What we are doing is like notifying the user.
+We are notifying, we are using light to notify the user.
+Exactly.
+Yes.
+Can you also use it in certain ways, that we have to figure out, to give input to the
+vehicle or something like that, so that user engagement will be minimal?
+Input to the vehicle as in?
+Let's say you have that light array, what we have here, right?
+Correct.
+If there is a receiver also there, which basically takes something like, how we do
+it with the camera, that brings up an eye or something like that, okay?
+So if we can basically add that input part into that somehow, that okay, you are basically
+projecting the light, so one thing is like, okay, something has happened, that head
+movement and everything, we have done that, okay?
+Light is being projected on this, okay?
+Yes.
+And then user reaction to that is captured.
+Correct.
+Okay.
+And based on that, some action is happening.
+Okay.
+Something like that.
+Like he is ignoring, he is...
+Yeah, something like that.
+Okay.
+So what will happen that, at least it will become like a whole closed loop system.
+Understood.
+For us, right?
+Okay.
+So very, very vague thing.
+Could be another pattern altogether.
+Okay.
+That is one thing.
+Head tracking part, like what was the technical implementation in that?
+There we would use IMU plus micrometer or whatever, so say that I need to take
+a left turn, right?
+If I am facing straight, this is here, but if I am looking that side or if it
+comes here, but if I am looking that side, it will actually come here to show
+whichever exact direction it is.
+And this is better for hazard because I can show back.
+If I am turning my eye to look back, then it adjusts itself so that the
+context is there.
+So, yeah, I think within head tracking we can broaden it.
+Okay.
+We were mostly focused on the application so far.
+Correct.
+Right.
+Can we focus more on the pure tech part of it?
+The analog.
+Adjustment is on.
+Okay.
+I think that will become a very broad content in itself.
+Okay.
+That based on, because it will be all 360, all three degrees of freedom you have when
+you are moving the head, right?
+Correct.
+Correct.
+Correct.
+So, how that three, like degrees of freedom are compensated with respect to this display?
+Understood.
+Okay.
+So, what will happen in that, that all your use cases, even what we have found
+earlier also, we can incorporate using the compensation part.
+Okay.
+So, what we will say that, okay, something has happened in surrounding or on the vehicle,
+a notification is about to go.
+That is step one.
+Okay.
+So, we will simply put it like that.
+Okay.
+First is detection instead, which is basically surrounding our vehicle, any.
+Detect each other.
+Yes.
+Second is, so this is existing, nothing new.
+Okay.
+Okay.
+All errors, everything is wrong.
+Second is processing to generate a light signal.
+Light signal, yes.
+50-50 here, something exists, something doesn't exist.
+Yes.
+Third part is the compensation.
+Okay.
+Here basically you have all three degrees of freedom.
+Yes.
+Based on that, you compensate the user's head movement with respect to that.
+Yes.
+Okay.
+And then based on the output of this compensation, you have basically notification.
+Okay.
+So, this will become your core step here.
+Understood.
+Now, once you have notification, then using this whole thing, we can build different
+use cases.
+The traffic awareness, hazard awareness.
+Sure.
+Makes sense.
+That kind of thing.
+Makes sense.
+So, what we will do is take this compensation and once, when we are doing this compensation,
+within this compensation, what we can do is we can have prioritization.
+P0, P1, P2.
+Okay.
+So, this detection anyway is giving you that information that something which is very
+urgent, something which is less urgent.
+So, let's say even after compensation, let's say some really big hazard is coming
+from the left and I believe that okay, only that showing it on the left is not sufficient,
+but it has to basically have like full red input kind of thing that you have to be
+aware of the whole thing.
+Got it.
+Then we can basically do the prioritization.
+Got it.
+This will become your sub-case.
+Okay.
+Here.
+So, basically we will do some kind of like bucketing or characterization.
+Not exactly priority, we will call it.
+We will say like okay, we will do the bucketing.
+Okay.
+And once you have this compensation and so compensation to notification module will
+say that based on the bucket, we will decide how to basically give it.
+I understand.
+Something like that.
+So, I think this compensation module what we are talking about using IMU plus at
+the same time if you want you can have like more sensor input.
+We have ear detection available with us, right?
+So, if it gives you some extra information about like fitting, rotation or this and
+this, we can utilize that also.
+Understood.
+Okay.
+Okay.
+So, using that couple of things, we will have this.
+And in the notification, one thing is your light that we are anyways using it.
+Second is a sub-use case.
+I am not saying it's a novel thing.
+Novelty.
+But what we can do is we can have like light plus sound.
+Because we have speaker.
+Yes.
+So, if you are giving a light thing, along with that you are just playing the
+sound.
+Something like that.
+The sound is already a thing we have.
+We have.
+Exactly.
+So, here what we will do is we will say light plus sound.
+Okay.
+So, light is going to be your main case here.
+Right.
+But what we say like we can also do multimodal.
+We will refer to that pattern.
+We will refer to light pattern.
+Right.
+This light thing.
+What we are proposing is we say like we can give both inputs as well.
+So, that user will have like full awareness.
+Understood.
+Right.
+So, let's say if your light is, user is here.
+Light is blinking here.
+Sound is coming from here.
+So, user know that okay.
+Understood.
+Got it.
+Because here we have that limitation that it's only this area.
+Right.
+That we are covering.
+Right.
+With sound we will have full control.
+So, let's do this.
+I think this should be novel.
+I am pretty sure.
+Right.
+This and then right.
+Okay.
+So, you work on this compensation part.
+Compensation.
+Using compensation we are identifying the location to.
+Got it.
+Got it.
+Blink that light.
+Got it.
+Got it.
+Let's do this.
+This side.
+This language.
+One, there is a Swift tools patent.
+I have stopped working on it.
+Okay.
+Essentially, but this has a little more context.
+You need to speak to Narayan a little bit.
+Okay.
+One of, I don't know if you were there.
+No, I don't think.
+One of Narayan's startups he is working with.
+The calculator guys.
+Yeah.
+Right.
+Right.
+So, we are working with them to send one new PSE doc.
+Isn't it?
+The UPI guys.
+They are trying to make a box themselves and things like that.
+Right.
+To help with that.
+So, Narayan had an idea from there.
+Can we try to apply the same concept of making a better tool system.
+Okay.
+Okay.
+So, it's not very Ather specific.
+So, Narayan's idea was to do this tool patent and then open source it from
+Ather side for India.
+Right.
+Because he's got the connect.
+Just take a look when you have time.
+Just take a look at it.
+Swift tools is what I have written.
+Swift tools.
+Some changes from my side is required.
+But I wanted your input before I go.
+I'll just tell you IDF.
+Swift tools is 25110862.
+25110862.
+I'll check with her.
+Right.
+They asked me to do some work.
+I didn't do.
+Because I just wanted you to catch up with Narayan first.
+One thing we need a little file soon is a weather box form.
+That is going to be deployed soon.
+And we've put the patent on all the description thing.
+Yes.
+The box form is 26010933.
+26010933.
+Last time we got a we said do this, do that.
+So, all of that we had done.
+So, just take a look at this.
+We'll go out in the next one month.
+So, before that I think.
+Okay.
+It was it is second in the line.
+This week it will be closed.
+Perfect.
+Two other things was.
+So, where?
+We have purely focused on the form vector of this.
+This is only the form vector.
+Okay.
+The last thing was the ERAS patents.
+I remember I had sent one.
+Yeah.
+List.
+List on which to patent.
+If you tell me which all to focus on then I can start focusing on those.
+That will come I think fast for us.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+Okay.
+I think it's working fast for us.
+Because of all the.
+One sheet I had shared.
+I looked it.
+Somehow it I think I slipped.
+No problem.
+I will pick it up.
+This week I will close this as well.
+Yes.
+Okay.
+The last was and new ideas I want to actually talk to you about.
+Okay.
+This is very, very hush hush only between me and.
+No, no, no.
+One is I need help with the ABCR whatever way file so far can you share that with
+me?
+Sure.
+Alright.
+identifying how to patent this so we are going to showcase ABCR in ACDC but what
+I'm trying to do is I want to try to connect helmet to this where when
+people does this this I want the vehicle to move left right that is one second
+thing is so the ABCR is one how do you talk to it we have three four
+ideas one is we're trying to use a muscle control sensor left and right
+so that you do this it should go left and right do this go left and
+right one was the helmet thing to control it third one was we had that
+ECG on the brain in which can detect three states that he calm this thing and use
+that to control those three things we have should it be one patient should be
+different patients just would be different okay
+reason being that the trigger mechanism is going to be different for all three of them
+patentability wise that ECG we have to see because I saw some article
+somewhere last year but there they were doing it with car okay so we'll see how
+we can do it but it is in that our ABCR only I want to do yeah in our
+tech zone it'll be in a tech zone yes it'll be in a tech zone so even like last
+year couple of them were not patentable as a demonstration we
+have went ahead but anyways you submit all three focus on the
+implementation part especially of the interfacing okay because taking
+this data processing this data is pretty much known all three type okay so how
+we are translating this data to there is what is limited to that that's what if I
+have that then I'll try to put it within that that's a chicken head chicken
+head and the ABCR yes yes so if you merge this with them I think we can get
+understand how we have implemented this the same thing we can translate to so I think
+all three we can see but mostly it will be on the interfaces and translation of
+commands understood nothing on like that whole system those kind of thing
+like multiple people have tried it in their own way that we can do but yeah
+myself one I believe could be bit novel okay usually in the real life
+scenario you don't get you don't this here here we get that freedom to
+sit in the bike and do all of this yes
+so myself one I am pretty sure that that will give high coefficient of novelty
+other two we can limit it in our own implementation where we can try to file this one
+okay so that we can do
+yeah so you submit all these three just pick me the numbers
+so I'll pick it
+the last thing I want to do is check this out there is a device called comma four by
+open pilot
+okay so open pilot is done by this guy who was the first guy to jailbreak iPhones
+and everything when Tesla came out with their implementation of self-driving
+this guy said I do not like the implementation and he started building these devices
+his software is called open pilot and it's open source
+comma four device essentially a camera device that you can attach to any car
+with cruise control and it will become auto driving
+autonomous driving
+so what me and Narayan next want to do is I want to get an auto and then I want to try to make it self-driving
+somebody's done that before but I don't know if there's any novelty or anything around it
+but again ABCR concept having that thing on the steering wheel on the auto is mostly how we're going to be doing things
+the comma AI we're buying just to see to tear it down so that we can see how viable it is
+and open pilot will take the source branch and do it right
+now if you see a lot of these you've seen these YOLO models for doing air as a right
+so when you're doing a vehicle straight they build a box and that's how they identified right
+you can see boxes around objects is how they're doing right
+this works great in US environments and Europe environments
+in our environments the box is never going to be a solid thing
+because of the road and everything these things should tilt right
+if we are and they don't tilt in this software because
+it's built by US and Europeans and they don't have the tilting thing their roads are great
+I am saying if object is in front of you is going to tilt
+is this triangle is going to tilt can I use that as an inferred IMU
+for me to figure out my next path
+right most of how for example how we do potholes today somebody has to go through that pothole road
+and then only I know potholes but in this I may not need a map
+somebody in front of me is vibrating that way then I can adjust my course
+I don't think if this is
+done by the US I don't think they have this kind of use case
+they will not have this kind of use case
+that's a good idea
+so try to get the inferred IMU and then adjust your path
+so how like these devices don't have anything like this
+no they just use camera this thing just uses camera
+and I don't know how it's going to work in Indian roads that's one thing I want to see I don't think
+for example some of our roads are just a thin layer of tar patch
+for us it varies I don't think this will be able to capture that
+that's true in that lot of things like they go with the standard markings
+and everything they understand like every road is marked properly
+exactly all those kinds of things we don't have any of that
+that's a good one actually
+so what do you want to do submit it now or wait for this device to come in and see
+I can I'll write for a FTO search and give first
+and then we can search what is there and then I can
+the auto that you are buying
+we'll buy it from Exponent
+anyways with ABCR with that auto
+somebody in India has done the
+I saw that news
+somebody had done but I don't know if they've gone anywhere
+no not university OSM
+company name is OSM
+yeah this one
+this is one thing other thing just one request about this
+I've been sharing feedback are you using some AI to basically
+I write it and then I no I modify it I just ask you to
+clean my sentences that's what I'm doing
+few cases what we were discussing and I noticed a lot of junk
+information is coming there I'll try to clean that up
+I think I write it down just take a photo put in AI and say give me a sentence
+might be possible that might be the reason because it basically kind of like
+not more information and because a simple thing is like
+the key features that they identify on which they search they are pretty much
+focused on that considering like what is novel and everything
+so what is something which is obviously existing or what we know 100 percent
+that we already know we don't even consider that
+so only those four or five features where we play with that is something we have to only
+worry about nothing beyond that
+there is my list also
+I'm meeting Shikhar tomorrow on it
+two things I'm meeting Ghost Patches also is there
+I thought Ghost Patches Darni would pick it up because she had done that bad roads thing
+I thought she would have more context so I'll just keep her also on it
+I think that time she was on and off so I'll pick it up so I think Shikhar is going to discuss that with you
+I'll do that
+I think he was also positive that something can be done
+I think Ghost Patches and this triangle thing will give us our autonomous driving
+my idea is ABCR I want to sit on it and say go to Jainagar I want to take me to Jainagar somehow
+that is my plan
+even on the tech side also if you see like
+there is something which we want to basically get from somebody
+like say our university has some tech or something just let me know
+because parallelly I'm visiting all these universities and
+few individuals those who are offering something
+so if you are looking for something specific where you think it's just a waste
+of time for you to put that into the practice or something like that
+you want to focus on core areas and some basic things you want to leave off
+let me know because I'm anyways in touch with quite a few universities so I can basically give them the requirement
+if anybody has anything readily available we can license it out from them or
+we can buy it from them that will probably save
+a lot of time
+thank you
