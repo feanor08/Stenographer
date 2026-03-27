@@ -40,12 +40,19 @@ step "Checking tkinter..."
 if python3 -c "import tkinter" &>/dev/null; then
     ok "tkinter available"
 else
-    warn "tkinter not found in your Python installation."
-    echo -e "  ${DIM}This is common with Homebrew Python. Fix with:${NC}"
-    echo -e "  ${YEL}  brew install python-tk${NC}"
-    echo -e "  ${DIM}Or download Python from https://python.org (includes tkinter).${NC}"
-    echo -e "  ${DIM}Then delete app/venv/ and re-run this installer.${NC}"
-    die "tkinter is required to run Stenographer."
+    warn "tkinter not found — attempting to install via Homebrew..."
+    if command -v brew &>/dev/null; then
+        PY_MINOR=$(python3 -c "import sys; print(f'{sys.version_info.minor}')")
+        brew install "python-tk@3.${PY_MINOR}" \
+            || die "brew install python-tk failed. Try downloading Python from https://python.org and re-run."
+        if python3 -c "import tkinter" &>/dev/null; then
+            ok "tkinter installed successfully"
+        else
+            die "tkinter still not found after install. Download Python from https://python.org and re-run."
+        fi
+    else
+        die "tkinter not found and Homebrew is not installed. Download Python from https://python.org (includes tkinter) and re-run."
+    fi
 fi
 
 # ── 2. Virtual environment ─────────────────────────────────────────────────────
