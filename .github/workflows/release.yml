@@ -1,4 +1,4 @@
-name: Build & Release DMG
+name: Build & Release
 
 on:
   push:
@@ -7,14 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version (e.g. 1.0.1) — defaults to tag name"
+        description: "Version (e.g. 1.0.5) — defaults to tag name"
         required: false
 
 jobs:
   build:
     runs-on: macos-latest
     permissions:
-      contents: write   # needed to create releases and upload assets
+      contents: write
 
     steps:
       - name: Checkout
@@ -37,6 +37,7 @@ jobs:
             "click>=8.1.7" \
             "faster-whisper>=1.0.0" \
             "rich>=13.7.0" \
+            "tkinterdnd2>=0.3.0" \
             "typer>=0.12.0" \
             "pillow" \
             "pyinstaller"
@@ -52,8 +53,45 @@ jobs:
           echo "VERSION=$V" >> "$GITHUB_OUTPUT"
           echo "Building version $V"
 
-      - name: Build DMG
+      - name: Build DMG + CLI binary
         run: BUILD_VERSION="${{ steps.ver.outputs.VERSION }}" ./build_dmg.sh
+
+      - name: Rename CLI binary for release
+        run: |
+          ARCH=$(uname -m)
+          cp dist/stenographer "dist/stenographer-macos-${ARCH}"
+          echo "CLI_BIN=dist/stenographer-macos-${ARCH}" >> "$GITHUB_ENV"
+
+      - name: Compute SHA256 for Homebrew formulas
+        id: sha
+        run: |
+          DMG="dist/Stenographer-${{ steps.ver.outputs.VERSION }}.dmg"
+          CLI="$CLI_BIN"
+          DMG_SHA=$(shasum -a 256 "$DMG" | awk '{print $1}')
+          CLI_SHA=$(shasum -a 256 "$CLI" | awk '{print $1}')
+          echo "DMG_SHA=$DMG_SHA" >> "$GITHUB_OUTPUT"
+          echo "CLI_SHA=$CLI_SHA" >> "$GITHUB_OUTPUT"
+          echo "DMG sha256: $DMG_SHA"
+          echo "CLI sha256: $CLI_SHA"
+
+      - name: Update Homebrew formula + cask with real SHA256
+        run: |
+          V="${{ steps.ver.outputs.VERSION }}"
+          ARCH=$(uname -m)
+          CLI_SHA="${{ steps.sha.outputs.CLI_SHA }}"
+          DMG_SHA="${{ steps.sha.outputs.DMG_SHA }}"
+
+          # Formula — update version + sha for the matching arch
+          sed -i '' "s/version \".*\"/version \"$V\"/" Formula/stenographer.rb
+          if [ "$ARCH" = "arm64" ]; then
+            sed -i '' "/on_arm/,/end/ s/sha256 .*/sha256 \"$CLI_SHA\"/" Formula/stenographer.rb
+          else
+            sed -i '' "/on_intel/,/end/ s/sha256 .*/sha256 \"$CLI_SHA\"/" Formula/stenographer.rb
+          fi
+
+          # Cask — update version + sha
+          sed -i '' "s/version \".*\"/version \"$V\"/" Casks/stenographer.rb
+          sed -i '' "s/sha256 .*/sha256 \"$DMG_SHA\"/" Casks/stenographer.rb
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -61,6 +99,8 @@ jobs:
           name: "Stenographer v${{ steps.ver.outputs.VERSION }}"
           tag_name: "${{ github.ref_name }}"
           generate_release_notes: true
-          files: "dist/Stenographer-${{ steps.ver.outputs.VERSION }}.dmg"
+          files: |
+            dist/Stenographer-${{ steps.ver.outputs.VERSION }}.dmg
+            ${{ env.CLI_BIN }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

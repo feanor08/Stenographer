@@ -45,7 +45,8 @@ ok "App bundle created at dist/Stenographer.app"
 step "Verifying bundle..."
 [ -f "$APP/Contents/MacOS/Stenographer" ] || die "GUI binary missing from bundle."
 [ -f "$APP/Contents/MacOS/transcribe"   ] || die "CLI binary missing from bundle."
-ok "Both binaries present"
+[ -f "$DIST/stenographer"               ] || die "stenographer CLI binary missing from dist/."
+ok "All binaries present"
 
 # ── DMG ────────────────────────────────────────────────────────────────────────
 step "Creating DMG..."

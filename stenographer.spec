@@ -51,13 +51,28 @@ a_cli = Analysis(
     noarchive=False,
 )
 
-MERGE(
-    (a_gui, "Stenographer", "Stenographer"),
-    (a_cli, "transcribe",   "transcribe"),
+# ── stenographer CLI (standalone binary for Homebrew / terminal use) ──────────
+a_steno = Analysis(
+    ["app/cli.py"],
+    pathex=["app"],
+    binaries=[],
+    datas=_fw_datas,
+    hiddenimports=_hidden,
+    hookspath=[],
+    runtime_hooks=[],
+    excludes=["tkinter", "tkinterdnd2"],
+    noarchive=False,
 )
 
-pyz_gui = PYZ(a_gui.pure)
-pyz_cli = PYZ(a_cli.pure)
+MERGE(
+    (a_gui,   "Stenographer",     "Stenographer"),
+    (a_cli,   "transcribe",       "transcribe"),
+    (a_steno, "stenographer",     "stenographer"),
+)
+
+pyz_gui   = PYZ(a_gui.pure)
+pyz_cli   = PYZ(a_cli.pure)
+pyz_steno = PYZ(a_steno.pure)
 
 exe_gui = EXE(
     pyz_gui,
@@ -84,7 +99,24 @@ exe_cli = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,           # CLI needs a console
+    console=True,
+)
+
+# Standalone CLI — built as a single-file binary so Homebrew can install it directly.
+exe_steno = EXE(
+    pyz_steno,
+    a_steno.scripts,
+    a_steno.binaries,
+    a_steno.zipfiles,
+    a_steno.datas,
+    [],
+    name="stenographer",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    onefile=True,
 )
 
 coll = COLLECT(
