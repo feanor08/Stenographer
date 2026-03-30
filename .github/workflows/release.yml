@@ -59,8 +59,8 @@ jobs:
       - name: Rename CLI binary for release
         run: |
           ARCH=$(uname -m)
-          cp dist/stenographer "dist/stenographer-macos-${ARCH}"
-          echo "CLI_BIN=dist/stenographer-macos-${ARCH}" >> "$GITHUB_ENV"
+          cp dist/stenograph "dist/stenograph-macos-${ARCH}"
+          echo "CLI_BIN=dist/stenograph-macos-${ARCH}" >> "$GITHUB_ENV"
 
       - name: Compute SHA256 for Homebrew formulas
         id: sha
@@ -82,11 +82,11 @@ jobs:
           DMG_SHA="${{ steps.sha.outputs.DMG_SHA }}"
 
           # Formula — update version + sha for the matching arch
-          sed -i '' "s/version \".*\"/version \"$V\"/" Formula/stenographer.rb
+          sed -i '' "s/version \".*\"/version \"$V\"/" Formula/stenograph.rb
           if [ "$ARCH" = "arm64" ]; then
-            sed -i '' "/on_arm/,/end/ s/sha256 .*/sha256 \"$CLI_SHA\"/" Formula/stenographer.rb
+            sed -i '' "/on_arm/,/end/ s/sha256 .*/sha256 \"$CLI_SHA\"/" Formula/stenograph.rb
           else
-            sed -i '' "/on_intel/,/end/ s/sha256 .*/sha256 \"$CLI_SHA\"/" Formula/stenographer.rb
+            sed -i '' "/on_intel/,/end/ s/sha256 .*/sha256 \"$CLI_SHA\"/" Formula/stenograph.rb
           fi
 
           # Cask — update version + sha

@@ -108,8 +108,8 @@ app = BUNDLE(
     icon="assets/icon.icns" if __import__("os").path.exists("assets/icon.icns") else None,
     bundle_identifier="com.feanor08.stenographer",
     info_plist={
-        "CFBundleShortVersionString": "1.0.7",
-        "CFBundleVersion":            "1.0.7",
+        "CFBundleShortVersionString": "1.0.8",
+        "CFBundleVersion":            "1.0.8",
         "NSHighResolutionCapable":    True,
         "NSMicrophoneUsageDescription": "Stenographer does not use the microphone.",
         "LSMinimumSystemVersion":     "11.0",

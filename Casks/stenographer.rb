@@ -1,5 +1,5 @@
 cask "stenographer" do
-  version "1.0.7"
+  version "1.0.8"
   sha256 :no_check   # updated automatically by CI
 
   url "https://github.com/feanor08/Stenographer/releases/download/v#{version}/Stenographer-#{version}.dmg"

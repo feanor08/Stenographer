@@ -1,6 +1,6 @@
-# cli.spec — standalone stenographer CLI binary
+# cli.spec — standalone stenograph CLI binary
 # Built separately from stenographer.spec to avoid the case-insensitive
-# filesystem conflict between dist/stenographer (binary) and
+# filesystem conflict between dist/stenograph (binary) and
 # dist/Stenographer/ (PyInstaller COLLECT folder).
 
 from PyInstaller.building.api import PYZ, EXE
@@ -41,7 +41,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="stenographer",
+    name="stenograph",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

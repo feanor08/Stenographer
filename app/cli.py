@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-stenographer — local audio transcription
+stenograph — local audio transcription
 
 Usage
 -----
-  stenographer <file> [<file> ...]
-  stenographer -m large-v3 -f srt meeting.m4a lecture.wav
-  stenographer --language hi --output-dir ~/transcripts podcast.mp3
+  stenograph <file> [<file> ...]
+  stenograph -m large-v3 -f srt meeting.m4a lecture.wav
+  stenograph --language hi --output-dir ~/transcripts podcast.mp3
 
 Files are transcribed in the order given.  Output is written next to each
 source file (or into --output-dir) with a _transcribed_<timestamp> suffix.
