@@ -1,7 +1,7 @@
 class Stenographer < Formula
   desc "Local audio transcription using Whisper — CLI"
   homepage "https://github.com/feanor08/Stenographer"
-  version "1.0.5"
+  version "1.0.7"
 
   on_macos do
     on_arm do

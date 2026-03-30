@@ -41,6 +41,14 @@ cd "$DIR"
 "$VENV/bin/pyinstaller" stenographer.spec --noconfirm
 ok "App bundle created at dist/Stenographer.app"
 
+# ── Build standalone CLI binary (separate spec avoids case-insensitive FS
+#    conflict between dist/stenographer and dist/Stenographer/ on macOS) ────────
+step "Building standalone CLI binary..."
+"$VENV/bin/pyinstaller" cli.spec --noconfirm --distpath "$DIST/cli-build"
+cp "$DIST/cli-build/stenographer" "$DIST/stenographer"
+rm -rf "$DIST/cli-build"
+ok "CLI binary created at dist/stenographer"
+
 # ── Sanity check ──────────────────────────────────────────────────────────────
 step "Verifying bundle..."
 [ -f "$APP/Contents/MacOS/Stenographer" ] || die "GUI binary missing from bundle."

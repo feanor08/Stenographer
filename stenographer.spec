@@ -51,28 +51,13 @@ a_cli = Analysis(
     noarchive=False,
 )
 
-# ── stenographer CLI (standalone binary for Homebrew / terminal use) ──────────
-a_steno = Analysis(
-    ["app/cli.py"],
-    pathex=["app"],
-    binaries=[],
-    datas=_fw_datas,
-    hiddenimports=_hidden,
-    hookspath=[],
-    runtime_hooks=[],
-    excludes=["tkinter", "tkinterdnd2"],
-    noarchive=False,
-)
-
 MERGE(
-    (a_gui,   "Stenographer",     "Stenographer"),
-    (a_cli,   "transcribe",       "transcribe"),
-    (a_steno, "stenographer",     "stenographer"),
+    (a_gui, "Stenographer", "Stenographer"),
+    (a_cli, "transcribe",   "transcribe"),
 )
 
-pyz_gui   = PYZ(a_gui.pure)
-pyz_cli   = PYZ(a_cli.pure)
-pyz_steno = PYZ(a_steno.pure)
+pyz_gui = PYZ(a_gui.pure)
+pyz_cli = PYZ(a_cli.pure)
 
 exe_gui = EXE(
     pyz_gui,
@@ -102,23 +87,6 @@ exe_cli = EXE(
     console=True,
 )
 
-# Standalone CLI — built as a single-file binary so Homebrew can install it directly.
-exe_steno = EXE(
-    pyz_steno,
-    a_steno.scripts,
-    a_steno.binaries,
-    a_steno.zipfiles,
-    a_steno.datas,
-    [],
-    name="stenographer",
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=False,
-    console=True,
-    onefile=True,
-)
-
 coll = COLLECT(
     exe_gui,
     a_gui.binaries,
@@ -140,8 +108,8 @@ app = BUNDLE(
     icon="assets/icon.icns" if __import__("os").path.exists("assets/icon.icns") else None,
     bundle_identifier="com.feanor08.stenographer",
     info_plist={
-        "CFBundleShortVersionString": "1.0.2",
-        "CFBundleVersion":            "1.0.2",
+        "CFBundleShortVersionString": "1.0.7",
+        "CFBundleVersion":            "1.0.7",
         "NSHighResolutionCapable":    True,
         "NSMicrophoneUsageDescription": "Stenographer does not use the microphone.",
         "LSMinimumSystemVersion":     "11.0",
