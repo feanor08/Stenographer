@@ -18,6 +18,7 @@ Thread inventory
   main thread     — _poll() drains the queue and updates widgets safely
 """
 import json
+import logging
 import os
 import platform
 import shutil
@@ -27,10 +28,45 @@ import subprocess
 import threading
 import queue
 import time
+import traceback
 from pathlib import Path
 from typing import List, Optional
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
+
+# ── Logging — writes to ~/Library/Logs/Stenographer/stenographer.log ──────────
+_LOG_DIR  = Path.home() / "Library" / "Logs" / "Stenographer"
+_LOG_FILE = _LOG_DIR / "stenographer.log"
+try:
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        handlers=[
+            logging.FileHandler(_LOG_FILE, encoding="utf-8"),
+        ],
+    )
+except Exception:
+    logging.basicConfig(level=logging.DEBUG)   # fallback: stderr only
+
+log = logging.getLogger("stenographer")
+log.info("=== Stenographer starting (pid %s) ===", os.getpid())
+log.info("Python %s  frozen=%s", sys.version, getattr(sys, "frozen", False))
+
+def _excepthook(exc_type, exc_value, exc_tb):
+    log.critical("Unhandled exception:\n%s", "".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+sys.excepthook = _excepthook
+
+# DnD support — optional; falls back to file-dialog-only if not installed
+try:
+    from tkinterdnd2 import TkinterDnD, DND_FILES
+    _DND_AVAILABLE = True
+    log.info("tkinterdnd2 loaded OK")
+except ImportError as _dnd_err:
+    _DND_AVAILABLE = False
+    log.warning("tkinterdnd2 not available: %s", _dnd_err)
 
 from shared import MODEL_INFO, MODEL_ORDER, fmt_dur, fmt_clock
 import updater
@@ -53,6 +89,7 @@ else:
 
 MODELS    = MODEL_ORDER
 LANGUAGES = ["auto", "en", "hi", "ta", "fr", "es", "de", "zh", "ja", "ko", "ar", "pt", "ru"]
+MAX_FILES = 5  # maximum files selectable at once
 
 # ── Colour palette ─────────────────────────────────────────────────────────────
 C = {
@@ -72,8 +109,8 @@ C = {
     "error_light":  "#FEE2E2",  # light red background
     "bar_track":    "#E2E8F0",  # progress bar track
     "sel_bg":       "#EFF6FF",  # hovered / selected row
-    "warn_bg":      C["warn_bg"],  # amber banner background
-    "warn_fg":      C["warn_fg"],  # amber banner text
+    "warn_bg":      "#FEF3C7",  # amber banner background
+    "warn_fg":      "#92400E",  # amber banner text
 }
 
 # Accuracy badge colours (readable on white)
@@ -267,7 +304,9 @@ class TranscriberApp:
         self._settings: dict = load_settings()
 
         _apply_style()
+        log.info("Building UI…")
         self._build_ui()
+        log.info("UI built successfully")
         self._poll()
         threading.Thread(target=self._check_for_update, daemon=True).start()
 
@@ -329,38 +368,83 @@ class TranscriberApp:
         ).pack(side="left", padx=(8, 0))
 
         # ── FFmpeg warning banner (shown immediately if ffmpeg is missing) ────
-        if not shutil.which("ffmpeg"):
-            install_cmd = "brew install ffmpeg"
-            brew_note = (
-                ""
-                if shutil.which("brew")
-                else (
-                    "  (Homebrew not found — install it first:\n"
-                    "   /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com"
-                    "/Homebrew/install/HEAD/install.sh)\")"
-                )
-            )
-            msg = (
-                "⚠  FFmpeg not found — time estimates are unavailable. "
-                "Transcription will still work.\n"
-                f"   To enable estimates, open Terminal and run:  {install_cmd}"
-                + (f"\n{brew_note}" if brew_note else "")
-            )
-            ffmpeg_banner = tk.Frame(self.root, bg=C["warn_bg"], padx=24, pady=10)
+        def _which_bundled(name: str, extras: list) -> bool:
+            if shutil.which(name):
+                return True
+            return any(os.path.isfile(p) and os.access(p, os.X_OK) for p in extras)
+
+        _ffmpeg_missing = not _which_bundled("ffmpeg", [
+            "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg",
+        ])
+        if _ffmpeg_missing:
+            has_brew   = _which_bundled("brew", [
+                "/opt/homebrew/bin/brew", "/usr/local/bin/brew",
+            ])
+            brew_cmd   = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+            ffmpeg_cmd = "brew install ffmpeg"
+
+            ffmpeg_banner = tk.Frame(self.root, bg=C["warn_bg"])
             ffmpeg_banner.pack(fill="x")
-            tk.Label(
-                ffmpeg_banner, text=msg,
-                bg=C["warn_bg"], fg=C["warn_fg"],
-                font=(FONT, 10), justify="left", anchor="w",
-            ).pack(side="left")
+            inner = tk.Frame(ffmpeg_banner, bg=C["warn_bg"], padx=24, pady=12)
+            inner.pack(fill="x")
+
+            # Title row
+            title_row = tk.Frame(inner, bg=C["warn_bg"])
+            title_row.pack(fill="x")
+            tk.Label(title_row, text="⚠  FFmpeg not installed",
+                     bg=C["warn_bg"], fg=C["warn_fg"],
+                     font=(FONT, 12, "bold")).pack(side="left")
+
+            # Subtitle
+            subtitle = (
+                "FFmpeg is required for time estimates and broad audio format support. "
+                "Transcription may still work for common formats without it."
+            )
+            tk.Label(inner, text=subtitle,
+                     bg=C["warn_bg"], fg=C["warn_fg"],
+                     font=(FONT, 10), justify="left", anchor="w",
+                     wraplength=580).pack(fill="x", pady=(4, 8))
+
+            def _cmd_row(parent, label, cmd):
+                """A labelled command line with a Copy button."""
+                row = tk.Frame(parent, bg=C["warn_bg"])
+                row.pack(fill="x", pady=2)
+                tk.Label(row, text=label, bg=C["warn_bg"], fg=C["warn_fg"],
+                         font=(FONT, 9, "bold"), width=10, anchor="w").pack(side="left")
+                tk.Label(row, text=cmd, bg=C["bg_input"], fg=C["text"],
+                         font=(MONO, 9), padx=8, pady=4,
+                         relief="flat", anchor="w").pack(side="left", fill="x", expand=True, padx=(4, 8))
+                def _copy(c=cmd):
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(c)
+                    self.root.update()
+                self._btn(row, "Copy", _copy,
+                          font=(FONT, 9), pady=4).pack(side="left")
+
+            if not has_brew:
+                tk.Label(inner, text="Step 1 — Install Homebrew (paste into Terminal):",
+                         bg=C["warn_bg"], fg=C["warn_fg"],
+                         font=(FONT, 9, "bold")).pack(anchor="w")
+                _cmd_row(inner, "", brew_cmd)
+                tk.Label(inner, text="Step 2 — Install FFmpeg:",
+                         bg=C["warn_bg"], fg=C["warn_fg"],
+                         font=(FONT, 9, "bold")).pack(anchor="w", pady=(6, 0))
+                _cmd_row(inner, "", ffmpeg_cmd)
+            else:
+                tk.Label(inner, text="Run in Terminal:",
+                         bg=C["warn_bg"], fg=C["warn_fg"],
+                         font=(FONT, 9, "bold")).pack(anchor="w")
+                _cmd_row(inner, "", ffmpeg_cmd)
 
         # ── File picker ────────────────────────────────────────────────────────
         file_section = self._card(self.root, title="Audio Files")
 
         file_row = tk.Frame(file_section, bg=C["bg_card"])
-        file_row.pack(fill="x", padx=16, pady=(4, 14))
+        file_row.pack(fill="x", padx=16, pady=(4, 4))
 
         self._btn(file_row, "📂  Choose Files", self._browse).pack(side="left")
+        self._btn(file_row, "✕  Clear All", self._clear_files,
+                  font=(FONT, 10)).pack(side="left", padx=(8, 0))
 
         self.file_label = tk.Label(
             file_row, text="No files selected",
@@ -368,6 +452,36 @@ class TranscriberApp:
             font=(FONT, 11), anchor="w",
         )
         self.file_label.pack(side="left", padx=12)
+
+        # Per-file list (populated by _refresh_file_list)
+        self._file_rows_frame = tk.Frame(file_section, bg=C["bg_card"])
+        self._file_rows_frame.pack(fill="x")
+
+        # Drop zone
+        if _DND_AVAILABLE:
+            self._drop_zone = tk.Label(
+                file_section,
+                text="⬆  Drop up to 5 audio files here",
+                bg=C["bg_input"], fg=C["text_muted"],
+                font=(FONT, 10), pady=12, anchor="center",
+            )
+            self._drop_zone.pack(fill="x", padx=16, pady=(4, 12))
+            try:
+                self._drop_zone.drop_target_register(DND_FILES)
+                self._drop_zone.dnd_bind("<<Drop>>", self._on_drop)
+                self._drop_zone.dnd_bind(
+                    "<<DragEnter>>",
+                    lambda e: self._drop_zone.config(bg=C["sel_bg"], fg=C["accent"]),
+                )
+                self._drop_zone.dnd_bind(
+                    "<<DragLeave>>",
+                    lambda e: self._drop_zone.config(bg=C["bg_input"], fg=C["text_muted"]),
+                )
+                log.info("Drop target registered OK")
+            except Exception as _dnd_reg_err:
+                log.exception("Failed to register drop target: %s", _dnd_reg_err)
+        else:
+            tk.Frame(file_section, bg=C["bg_card"], height=10).pack(fill="x")
 
         # ── Options ────────────────────────────────────────────────────────────
         opt_section = self._card(self.root, title="Settings")
@@ -401,6 +515,7 @@ class TranscriberApp:
         # ── Estimates panel (revealed when files are selected) ─────────────────
         self.estimates_outer = tk.Frame(self.root, bg=C["bg"])
         self._build_estimates_panel()
+        self._highlight_selected_model()
 
         # ── Progress panel (revealed when transcription starts) ────────────────
         self.progress_outer = tk.Frame(self.root, bg=C["bg"])
@@ -517,7 +632,6 @@ class TranscriberApp:
             font=f, fg=fg, bg=bg,
             activeforeground=afg, activebackground=abg,
             relief="flat", bd=0, pady=pady,
-            cursor="hand2",
             highlightthickness=1,
             highlightbackground=C["border"],
             command=command,
@@ -577,7 +691,7 @@ class TranscriberApp:
                 w = col_specs[col][1]
                 lbl = tk.Label(tbl, text=text, bg=_bg, fg=fg,
                                font=f, width=w, pady=7, anchor="center",
-                               cursor="hand2")
+                               )
                 lbl.grid(row=r, column=col, padx=1, pady=1, sticky="nsew")
                 return lbl
 
@@ -612,38 +726,39 @@ class TranscriberApp:
                 cell.bind("<Enter>",    hover_in_cb)
                 cell.bind("<Leave>",    hover_out_cb)
 
-    def _refresh_estimates(self):
-        if self.total_audio_seconds <= 0:
-            return
-        total_s  = self.total_audio_seconds
+    def _highlight_selected_model(self):
+        """Apply selection highlight to the estimates table (no duration needed)."""
         selected = self.model_var.get()
-
-        self.audio_dur_label.config(text=f"·  Total audio: {fmt_dur(total_s)}")
-
         for model in MODEL_ORDER:
-            info    = MODEL_INFO[model]
-            est_s   = info["load_s"] + total_s * info["rt_mult"]
-            row     = self._est_rows[model]
-            cells   = row["cells"]
-            is_sel  = (model == selected)
-            row_bg  = C["sel_bg"] if is_sel else row["alt_bg"]
-
-            cells["est_time"].config(text=fmt_dur(est_s))
-            cells["finish"].config(text=fmt_clock(est_s))
-
+            row    = self._est_rows[model]
+            cells  = row["cells"]
+            is_sel = (model == selected)
+            row_bg = C["sel_bg"] if is_sel else row["alt_bg"]
             for cell in cells.values():
                 cell.config(bg=row_bg)
-
             if is_sel:
-                cells["model"].config(fg=C["accent"],      text=f"▶  {model}")
+                cells["model"].config(fg=C["accent"], text=f"▶  {model}")
                 cells["speed"].config(fg=C["text"])
                 cells["est_time"].config(fg=C["accent"])
                 cells["finish"].config(fg=C["accent"])
             else:
-                cells["model"].config(fg=C["text_hi"],     text=model)
+                cells["model"].config(fg=C["text_hi"], text=model)
                 cells["speed"].config(fg=C["text_muted"])
                 cells["est_time"].config(fg=C["text_muted"])
                 cells["finish"].config(fg=C["text_muted"])
+
+    def _refresh_estimates(self):
+        self._highlight_selected_model()
+        if self.total_audio_seconds <= 0:
+            return
+        total_s = self.total_audio_seconds
+        self.audio_dur_label.config(text=f"·  Total audio: {fmt_dur(total_s)}")
+        for model in MODEL_ORDER:
+            info  = MODEL_INFO[model]
+            est_s = info["load_s"] + total_s * info["rt_mult"]
+            cells = self._est_rows[model]["cells"]
+            cells["est_time"].config(text=fmt_dur(est_s))
+            cells["finish"].config(text=fmt_clock(est_s))
 
     # ── Progress panel ─────────────────────────────────────────────────────────
 
@@ -656,6 +771,22 @@ class TranscriberApp:
         tk.Label(prog_frame, text="Progress",
                  font=(FONT, 9, "bold"), bg=C["bg"],
                  fg=C["text_muted"]).pack(anchor="w", pady=(0, 6))
+
+        # ── Per-file bar ───────────────────────────────────────────────────────
+        self._file_prog_label = tk.Label(
+            prog_frame, text="Current file",
+            font=(FONT, 10), bg=C["bg"], fg=C["text_muted"],
+        )
+        self._file_prog_label.pack(anchor="w")
+
+        self._file_smooth_bar = SmoothBar(prog_frame, height=4, bg=C["bg"])
+        self._file_smooth_bar.pack(fill="x")
+
+        tk.Frame(prog_frame, bg=C["bg"], height=8).pack(fill="x")
+
+        # ── Overall bar ────────────────────────────────────────────────────────
+        tk.Label(prog_frame, text="Overall",
+                 font=(FONT, 10), bg=C["bg"], fg=C["text_muted"]).pack(anchor="w")
 
         self.smooth_bar = SmoothBar(prog_frame, height=6, bg=C["bg"])
         self.smooth_bar.pack(fill="x")
@@ -676,8 +807,11 @@ class TranscriberApp:
     # ── Progress ticking ───────────────────────────────────────────────────────
 
     def _start_progress_tick(self):
+        self._file_smooth_bar.set(0)
+        self._file_prog_label.config(text="Starting…")
         if self.total_audio_seconds <= 0:
             self.smooth_bar.pulse()
+            self._file_smooth_bar.pulse()
             self.remaining_lbl.config(text="Working…")
             self.finish_at_lbl.config(text="Duration unknown")
         else:
@@ -699,11 +833,124 @@ class TranscriberApp:
 
     def _stop_progress_tick(self):
         self.smooth_bar.stop_pulse()
+        self._file_smooth_bar.stop_pulse()
         if self._tick_id:
             self.root.after_cancel(self._tick_id)
             self._tick_id = None
 
     # ── File selection ─────────────────────────────────────────────────────────
+
+    def _on_drop(self, event):
+        log.info("_on_drop fired  data=%r", event.data)
+        self._drop_zone.config(bg=C["bg_input"], fg=C["text_muted"])
+        self._add_files(self._parse_dnd_files(event.data))
+
+    def _parse_dnd_files(self, data: str) -> List[str]:
+        """Parse the Tcl list of paths that tkinterdnd2 returns on drop."""
+        files: List[str] = []
+        data = data.strip()
+        while data:
+            if data.startswith("{"):
+                end = data.find("}")
+                if end == -1:
+                    files.append(data[1:])
+                    break
+                files.append(data[1:end])
+                data = data[end + 1:].strip()
+            else:
+                parts = data.split(None, 1)
+                files.append(parts[0])
+                data = parts[1].strip() if len(parts) > 1 else ""
+        return files
+
+    def _add_files(self, new_files: List[str]):
+        """Add files to the selection, enforcing MAX_FILES and deduplication."""
+        from shared import AUDIO_EXTS
+        audio  = [f for f in new_files if Path(f).suffix.lower() in AUDIO_EXTS]
+        bad    = [Path(f).name for f in new_files if Path(f).suffix.lower() not in AUDIO_EXTS]
+
+        existing = set(self.selected_files)
+        to_add   = [f for f in audio if f not in existing]
+        dupes    = len(audio) - len(to_add)
+
+        available = MAX_FILES - len(self.selected_files)
+        capped    = to_add[:available]
+        skipped   = len(to_add) - len(capped)
+
+        if bad:
+            preview = "\n".join(bad[:5]) + ("…" if len(bad) > 5 else "")
+            messagebox.showwarning(
+                "Unsupported files",
+                f"{len(bad)} file(s) skipped (unsupported format):\n{preview}",
+            )
+        if dupes:
+            messagebox.showinfo("Duplicates removed", f"{dupes} duplicate file(s) removed.")
+        if skipped:
+            messagebox.showinfo(
+                "Limit reached",
+                f"Maximum {MAX_FILES} files allowed. {skipped} file(s) skipped.",
+            )
+
+        if not capped:
+            return
+
+        self.selected_files.extend(capped)
+        self._refresh_file_list()
+
+        self.estimates_outer.pack(fill="x", before=self.btn_row)
+        self.audio_dur_label.config(text="·  Analyzing…")
+        for row in self._est_rows.values():
+            for k in ("est_time", "finish"):
+                row["cells"][k].config(text="…")
+        threading.Thread(target=self._analyze_files, daemon=True).start()
+
+    def _refresh_file_list(self):
+        """Rebuild the per-file list widget from self.selected_files."""
+        for w in self._file_rows_frame.winfo_children():
+            w.destroy()
+
+        n = len(self.selected_files)
+        if n == 0:
+            self.file_label.config(text="No files selected", fg=C["text_muted"])
+            return
+
+        self.file_label.config(
+            text=f"{n} / {MAX_FILES} file{'s' if n != 1 else ''} selected",
+            fg=C["text"],
+        )
+
+        for i, f in enumerate(self.selected_files):
+            row = tk.Frame(self._file_rows_frame, bg=C["bg_card"])
+            row.pack(fill="x", padx=16, pady=1)
+
+            tk.Label(
+                row,
+                text=f"  {i + 1}.  {Path(f).name}",
+                bg=C["bg_card"], fg=C["text"],
+                font=(FONT, 10), anchor="w",
+            ).pack(side="left", fill="x", expand=True)
+
+            def _make_remove(idx: int):
+                def _rm():
+                    self.selected_files.pop(idx)
+                    self._refresh_file_list()
+                    if self.selected_files:
+                        threading.Thread(target=self._analyze_files, daemon=True).start()
+                    else:
+                        self.total_audio_seconds = 0.0
+                        self.estimates_outer.pack_forget()
+                return _rm
+
+            self._btn(
+                row, "×", _make_remove(i),
+                font=(FONT, 9), pady=2,
+            ).pack(side="right", padx=(0, 4))
+
+    def _clear_files(self):
+        self.selected_files = []
+        self._refresh_file_list()
+        self.total_audio_seconds = 0.0
+        self.estimates_outer.pack_forget()
 
     def _browse(self):
         files = filedialog.askopenfilenames(
@@ -713,44 +960,8 @@ class TranscriberApp:
                 ("All files", "*.*"),
             ],
         )
-        if not files:
-            return
-
-        # Deduplicate preserving selection order
-        seen: set = set()
-        unique = []
-        for f in files:
-            if f not in seen:
-                seen.add(f)
-                unique.append(f)
-        dupes = len(files) - len(unique)
-        files = unique
-
-        # Warn about unsupported extensions
-        from shared import AUDIO_EXTS
-        bad = [Path(f).name for f in files if Path(f).suffix.lower() not in AUDIO_EXTS]
-        if bad:
-            preview = "\n".join(bad[:5]) + ("\n…" if len(bad) > 5 else "")
-            messagebox.showwarning(
-                "Unsupported files",
-                f"{len(bad)} file(s) will be skipped (unsupported format):\n{preview}",
-            )
-        if dupes:
-            messagebox.showinfo("Duplicates removed", f"{dupes} duplicate file(s) removed.")
-
-        self.selected_files = list(files)
-        names  = [Path(f).name for f in files]
-        joined = ", ".join(names)
-        label  = joined if len(joined) <= 54 else f"{len(files)} file(s) selected"
-        self.file_label.config(text=label, fg=C["text"])
-
-        self.estimates_outer.pack(fill="x", before=self.btn_row)
-        self.audio_dur_label.config(text="·  Analyzing…")
-        for row in self._est_rows.values():
-            for k in ("est_time", "finish"):
-                row["cells"][k].config(text="…")
-
-        threading.Thread(target=self._analyze_files, daemon=True).start()
+        if files:
+            self._add_files(list(files))
 
     def _analyze_files(self):
         total  = 0.0
@@ -790,6 +1001,19 @@ class TranscriberApp:
                 elif kind == "duration":
                     self.total_audio_seconds = payload
                     self._refresh_estimates()
+                elif kind == "fileidx":
+                    idx, total_files, name = payload
+                    self._file_smooth_bar.set(0)
+                    self._file_prog_label.config(
+                        text=f"File {idx} / {total_files}:  {name}",
+                    )
+                elif kind == "fileprog":
+                    done, total, name = payload
+                    pct = (done / total * 100) if total > 0 else 0
+                    self._file_smooth_bar.set(pct)
+                    self._file_prog_label.config(
+                        text=f"File:  {name}  —  {done:.0f}s / {total:.0f}s",
+                    )
                 elif kind == "update_available":
                     self._show_update_banner(payload)
                 elif kind == "update_seen":
@@ -803,6 +1027,7 @@ class TranscriberApp:
     # ── Transcription ──────────────────────────────────────────────────────────
 
     def _run(self):
+        log.info("_run called with %d file(s): %s", len(self.selected_files), self.selected_files)
         if not self.selected_files:
             messagebox.showwarning("No files",
                                    "Please choose at least one audio file first.")
@@ -838,6 +1063,8 @@ class TranscriberApp:
 
         self.progress_outer.pack(fill="x", before=self.btn_row)
         self.smooth_bar.set(0)
+        self._file_smooth_bar.set(0)
+        self._file_prog_label.config(text="Starting…")
         self.remaining_lbl.config(text=f"Time left: {fmt_dur(self.estimated_total_s)}")
         self.finish_at_lbl.config(text=f"Done by {fmt_clock(self.estimated_total_s)}")
 
@@ -859,6 +1086,9 @@ class TranscriberApp:
         for f in self.selected_files:
             cmd += ["--files", f]
 
+        log.info("Subprocess cmd: %s", cmd)
+        log.info("PYTHON=%s  exists=%s", PYTHON, Path(str(PYTHON)).exists())
+
         # NO_COLOR + TERM=dumb suppress Rich's ANSI sequences so the console
         # widget shows plain text.  stderr=STDOUT merges child process errors.
         env = {**os.environ, "NO_COLOR": "1", "TERM": "dumb"}
@@ -870,6 +1100,7 @@ class TranscriberApp:
             )
             for line in self._proc.stdout:
                 clean = strip_ansi(line)
+                log.debug("subprocess: %s", clean.rstrip())
                 if clean.startswith("OUTPUT:"):
                     self._output_files.append(clean[len("OUTPUT:"):].strip())
                     self.q.put(("log", clean))
@@ -877,6 +1108,22 @@ class TranscriberApp:
                 if clean.startswith("FAILED:"):
                     self._failed_files.append(clean[len("FAILED:"):].strip())
                     self.q.put(("log", clean))
+                    continue
+                if clean.startswith("FILEIDX:"):
+                    parts = clean[len("FILEIDX:"):].strip().split(":", 2)
+                    if len(parts) == 3:
+                        try:
+                            self.q.put(("fileidx", (int(parts[0]), int(parts[1]), parts[2])))
+                        except ValueError:
+                            pass
+                    continue
+                if clean.startswith("FILEPROG:"):
+                    parts = clean[len("FILEPROG:"):].strip().split(":", 2)
+                    if len(parts) == 3:
+                        try:
+                            self.q.put(("fileprog", (float(parts[0]), float(parts[1]), parts[2])))
+                        except ValueError:
+                            pass
                     continue
                 if clean.startswith("LANG:"):
                     parts = clean[len("LANG:"):].strip().split(":")
@@ -888,13 +1135,16 @@ class TranscriberApp:
                             pass
                 self.q.put(("log", clean))
             self._proc.wait()
-            if self._proc.returncode == 0:
+            rc = self._proc.returncode
+            log.info("Subprocess exited with code %s", rc)
+            if rc == 0:
                 self.q.put(("log", "\nTranscription complete.\n"))
                 self.q.put(("done", True))
             else:
-                self.q.put(("log", f"\nProcess exited with code {self._proc.returncode}.\n"))
+                self.q.put(("log", f"\nProcess exited with code {rc}.\n"))
                 self.q.put(("done", False))
         except Exception as exc:
+            log.exception("Worker exception: %s", exc)
             self.q.put(("log", f"\nError: {exc}\n"))
             self.q.put(("done", False))
         finally:
@@ -906,16 +1156,24 @@ class TranscriberApp:
         self._output_files = []
 
     def _on_done(self, success: bool):
+        # If the process exited 0 but produced no output (all files failed),
+        # treat it as a failure so the UI reflects what actually happened.
+        if success and not self._output_files:
+            success = False
+        log.info("_on_done success=%s  output_files=%s  failed=%s", success, self._output_files, self._failed_files)
         self._stop_progress_tick()
         self.transcription_start = None
 
         self.smooth_bar.set(100 if success else 0)
+        self._file_smooth_bar.set(100 if success else 0)
         if success:
             self.remaining_lbl.config(text="Done  ✓", fg=C["success"])
             self.finish_at_lbl.config(text=f"Finished at {fmt_clock(0)}", fg=C["text_muted"])
+            self._file_prog_label.config(text="All files done")
         else:
             self.remaining_lbl.config(text="Failed", fg=C["error"])
             self.finish_at_lbl.config(text="", fg=C["text_muted"])
+            self._file_prog_label.config(text="")
 
         self.stop_btn.pack_forget()
         self.run_btn.config(state="normal", text="Transcribe",
@@ -986,9 +1244,17 @@ class TranscriberApp:
 
 
 def main():
-    root = tk.Tk()
-    TranscriberApp(root)
-    root.mainloop()
+    log.info("Creating root window (DnD=%s)", _DND_AVAILABLE)
+    try:
+        root = TkinterDnD.Tk() if _DND_AVAILABLE else tk.Tk()
+        log.info("Root window created  TkdndVersion=%s", getattr(root, "TkdndVersion", "n/a"))
+        TranscriberApp(root)
+        log.info("Entering mainloop")
+        root.mainloop()
+        log.info("mainloop exited cleanly")
+    except Exception:
+        log.exception("Fatal error in main()")
+        raise
 
 
 if __name__ == "__main__":

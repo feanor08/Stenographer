@@ -7,6 +7,7 @@ faster-whisper, and writes all results to a single transcriptions.txt.
 """
 
 import json
+import logging
 import math
 import os
 import queue
@@ -15,9 +16,32 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# ── Logging (appends to the same file as the GUI) ─────────────────────────────
+_LOG_DIR  = Path.home() / "Library" / "Logs" / "Stenographer"
+_LOG_FILE = _LOG_DIR / "stenographer.log"
+try:
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s  %(levelname)-8s  [transcribe] %(message)s",
+        handlers=[logging.FileHandler(_LOG_FILE, encoding="utf-8")],
+    )
+except Exception:
+    logging.basicConfig(level=logging.DEBUG)
+
+tlog = logging.getLogger("stenographer.transcribe")
+tlog.info("=== transcribe.py starting (pid %s) argv=%s ===", os.getpid(), sys.argv)
+
+def _excepthook(exc_type, exc_value, exc_tb):
+    tlog.critical("Unhandled exception:\n%s", "".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+sys.excepthook = _excepthook
 
 import typer
 from rich import box
@@ -104,7 +128,21 @@ def cleanup_interrupted_run_artifacts(
 
 
 def check_ffmpeg() -> bool:
-    return shutil.which("ffmpeg") is not None
+    if shutil.which("ffmpeg"):
+        return True
+    # When running inside a .app bundle, PATH is stripped to /usr/bin:/bin.
+    # Probe the common Homebrew locations directly.
+    for candidate in [
+        "/opt/homebrew/bin/ffmpeg",   # Apple Silicon Homebrew
+        "/usr/local/bin/ffmpeg",      # Intel Homebrew
+        "/usr/bin/ffmpeg",
+    ]:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            # Add its directory to PATH so all subsequent subprocess calls find it too.
+            os.environ["PATH"] = os.path.dirname(candidate) + ":" + os.environ.get("PATH", "")
+            tlog.info("ffmpeg found at %s (injected into PATH)", candidate)
+            return True
+    return False
 
 
 def extract_zip(zip_path: Path, dest_dir: Path) -> None:
@@ -793,7 +831,10 @@ def main(
     if fmt not in {"txt", "srt", "vtt"}:
         raise typer.BadParameter("--format must be one of: txt, srt, vtt")
 
+    tlog.info("PATH=%s", os.environ.get("PATH", ""))
+    tlog.info("ffmpeg on PATH: %s", shutil.which("ffmpeg"))
     if not check_ffmpeg():
+        tlog.error("ffmpeg not found — exiting with code 1")
         log("⚠️  FFmpeg not found. Install: brew install ffmpeg (macOS) | apt install ffmpeg (Linux)")
         raise typer.Exit(code=1)
 
@@ -841,13 +882,19 @@ def main(
 
     # ── Load model ─────────────────────────────────────────────────────────────
     cached = is_model_cached(selected_model)
+    tlog.info("Loading model %s  cached=%s  device=%s  compute=%s", selected_model, cached, device, compute_type)
     if cached:
         log(f"Loading model: {selected_model} | device={device} | compute={compute_type}")
     else:
         log(f"Downloading model: {selected_model} (first use — may take a few minutes) | device={device} | compute={compute_type}")
-    model_obj = load_model_with_progress(
-        selected_model, device=device, compute_type=compute_type, task=task
-    )
+    try:
+        model_obj = load_model_with_progress(
+            selected_model, device=device, compute_type=compute_type, task=task
+        )
+        tlog.info("Model loaded OK")
+    except Exception as _model_err:
+        tlog.exception("Failed to load model: %s", _model_err)
+        raise
     diarization_pipeline = None
     if diarize:
         log("Preparing speaker diarization pipeline...")
@@ -859,6 +906,10 @@ def main(
     transcription_start   = time.time()
     overall_total         = total_audio_seconds if total_audio_seconds > 0 else float(len(audio_files))
     overall_done          = 0.0
+
+    # In per-file mode, always write outputs to the first file's folder so
+    # that files from different directories land in one place.
+    output_dir = audio_files[0].parent if per_file_mode else None
 
     with Progress(
         SpinnerColumn(),
@@ -874,7 +925,8 @@ def main(
         overall_task = pbar.add_task("Transcribing", total=overall_total, eta="estimating...")
         file_task    = pbar.add_task("Current file: waiting...", total=1.0, completed=0.0, eta="--:--")
 
-        for audio in audio_files:
+        for file_idx, audio in enumerate(audio_files, 1):
+            tlog.info("Transcribing file %d/%d: %s", file_idx, len(audio_files), audio)
             audio_dur       = get_audio_duration_seconds(audio)
             file_total      = audio_dur if audio_dur > 0 else 1.0
             file_done       = 0.0
@@ -883,6 +935,7 @@ def main(
             pbar.update(overall_task, description=f"Transcribing: {safe_name}")
             pbar.update(file_task, description=f"File: {safe_name}",
                         total=file_total, completed=0.0, eta="estimating...")
+            print(f"FILEIDX:{file_idx}:{len(audio_files)}:{audio.name}", flush=True)
 
             try:
                 segments: List[Dict[str, object]] = []
@@ -906,6 +959,7 @@ def main(
                         if delta > 0:
                             file_done    = new_done
                             overall_done = min(overall_total, overall_done + delta)
+                            print(f"FILEPROG:{file_done:.1f}:{file_total:.1f}:{audio.name}", flush=True)
 
                     elapsed  = time.time() - transcription_start
                     eta_text = _compute_eta(overall_done, overall_total, elapsed)
@@ -943,7 +997,7 @@ def main(
 
                 if per_file_mode:
                     ext = ".srt" if fmt == "srt" else ".vtt" if fmt == "vtt" else ".txt"
-                    out_path = audio.parent / f"{audio.stem}_transcribed_{run_ts}{ext}"
+                    out_path = output_dir / f"{audio.stem}_transcribed_{run_ts}{ext}"
                     part     = out_path.with_suffix(out_path.suffix + ".part")
                     with open(part, "w", encoding="utf-8") as fh:
                         fh.write((text if text else "[No speech detected]") + "\n")

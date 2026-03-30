@@ -5,6 +5,7 @@
 from PyInstaller.building.api import PYZ, EXE, COLLECT
 from PyInstaller.building.osx import BUNDLE
 from PyInstaller.building.build_main import Analysis
+from PyInstaller.utils.hooks import collect_data_files
 
 # Hidden imports required by faster-whisper / ctranslate2
 _hidden = [
@@ -14,14 +15,22 @@ _hidden = [
     "tokenizers",
     "numpy",
     "av",
+    "tkinterdnd2",
 ]
+
+# tkinterdnd2 ships native Tcl extensions (dylib + tcl scripts) that
+# PyInstaller won't discover automatically — collect them explicitly.
+_tkdnd_datas = collect_data_files("tkinterdnd2")
+
+# faster-whisper bundles a Silero VAD ONNX model that PyInstaller misses.
+_fw_datas = collect_data_files("faster_whisper")
 
 # ── GUI ────────────────────────────────────────────────────────────────────────
 a_gui = Analysis(
     ["app/one_click_ui.py"],
     pathex=["app"],
     binaries=[],
-    datas=[],
+    datas=_tkdnd_datas + _fw_datas,
     hiddenimports=_hidden,
     hookspath=[],
     runtime_hooks=[],
@@ -34,7 +43,7 @@ a_cli = Analysis(
     ["app/transcribe.py"],
     pathex=["app"],
     binaries=[],
-    datas=[],
+    datas=_fw_datas,
     hiddenimports=_hidden,
     hookspath=[],
     runtime_hooks=[],
@@ -99,8 +108,8 @@ app = BUNDLE(
     icon="assets/icon.icns" if __import__("os").path.exists("assets/icon.icns") else None,
     bundle_identifier="com.feanor08.stenographer",
     info_plist={
-        "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion":            "1.0.0",
+        "CFBundleShortVersionString": "1.0.2",
+        "CFBundleVersion":            "1.0.2",
         "NSHighResolutionCapable":    True,
         "NSMicrophoneUsageDescription": "Stenographer does not use the microphone.",
         "LSMinimumSystemVersion":     "11.0",
