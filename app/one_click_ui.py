@@ -73,11 +73,17 @@ import updater
 
 PROJECT_DIR = Path(__file__).parent
 
+
+def bundled_transcribe_path(bundle_dir: Path, system: Optional[str] = None) -> Path:
+    system = system or platform.system()
+    return bundle_dir / ("transcribe.exe" if system == "Windows" else "transcribe")
+
+
 if getattr(sys, "frozen", False):
-    # Running inside a PyInstaller .app bundle.
-    # The GUI executable and the 'transcribe' helper are siblings in MacOS/.
+    # Running inside a PyInstaller bundle.
+    # The GUI executable and bundled transcribe helper are sibling binaries.
     _bundle_dir = Path(sys.executable).parent
-    PYTHON = _bundle_dir / "transcribe"
+    PYTHON = bundled_transcribe_path(_bundle_dir)
     SCRIPT: Optional[Path] = None          # transcribe is a standalone binary
 else:
     PYTHON = (
@@ -144,15 +150,27 @@ def strip_ansi(text: str) -> str:
 def open_file(path: str):
     if _sys == "Windows":
         os.startfile(path)
-    else:
-        subprocess.run(["open", path])
+        return
+    if _sys == "Darwin":
+        subprocess.run(["open", path], check=False)
+        return
+    if _sys == "Linux":
+        subprocess.run(["xdg-open", path], check=False)
+        return
+    raise RuntimeError(f"Unsupported platform: {_sys}")
 
 
 def show_in_file_manager(path: str):
     if _sys == "Windows":
         subprocess.run(["explorer", "/select,", path])
-    else:
-        subprocess.run(["open", "-R", path])
+        return
+    if _sys == "Darwin":
+        subprocess.run(["open", "-R", path], check=False)
+        return
+    if _sys == "Linux":
+        subprocess.run(["xdg-open", str(Path(path).parent)], check=False)
+        return
+    raise RuntimeError(f"Unsupported platform: {_sys}")
 
 
 SETTINGS_FILE = Path.home() / ".stenographer_settings.json"
@@ -170,6 +188,12 @@ def save_settings(settings: dict) -> None:
         SETTINGS_FILE.write_text(json.dumps(settings, indent=2), encoding="utf-8")
     except Exception:
         pass
+
+
+def merge_settings(existing: dict, updates: dict) -> dict:
+    merged = dict(existing)
+    merged.update(updates)
+    return merged
 
 
 def get_audio_duration(path: str) -> float:
@@ -1046,11 +1070,12 @@ class TranscriberApp:
 
         self._failed_files = []
         self._output_files = []
-        save_settings({
+        self._settings = merge_settings(self._settings, {
             "model": model,
             "language": self.lang_var.get(),
             "format": self.format_var.get(),
         })
+        save_settings(self._settings)
         self.run_btn.config(state="disabled", text="Transcribing…",
                             bg=C["text_muted"], fg=C["accent_fg"])
         self.open_btn.pack_forget()

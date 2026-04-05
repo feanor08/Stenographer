@@ -1,8 +1,6 @@
 """Tests for updater.py — update check logic."""
 import unittest.mock as mock
 
-import pytest
-
 import updater
 
 

@@ -1,9 +1,8 @@
 """Tests for shared.py — pure utility functions."""
 import re
-from unittest.mock import patch
 from datetime import datetime
+from unittest.mock import patch
 
-import pytest
 from shared import fmt_dur, fmt_hms, fmt_clock, fmt_timestamp
 
 

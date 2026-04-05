@@ -2,7 +2,9 @@
 
 > Turn any audio file into text — no internet, no accounts, no subscriptions. Just press go.
 
-**[⬇️ Download the latest DMG](https://github.com/feanor08/Stenographer/releases/latest)**
+**[⬇️ Download the latest release](https://github.com/feanor08/Stenographer/releases/latest)**
+
+macOS ships as a `.dmg`. Windows release assets include a GUI `.zip` and a standalone CLI `.exe`.
 
 ---
 

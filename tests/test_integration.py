@@ -1,5 +1,5 @@
 """
-Integration tests — run the transcribe.py CLI end-to-end against real audio.
+Integration tests for the internal transcribe.py worker entry point.
 
 Requirements:
   - ffmpeg installed and on PATH
@@ -38,9 +38,11 @@ def _silent_wav(path: Path, duration: int = 2) -> None:
     )
 
 
-def _run(audio: Path, *extra_args: str) -> subprocess.CompletedProcess:
-    cmd = [str(PYTHON), str(SCRIPT), "--model", "tiny", "--files", str(audio),
-           *extra_args]
+def _run(*files: Path, extra_args: tuple[str, ...] = ()) -> subprocess.CompletedProcess:
+    cmd = [str(PYTHON), str(SCRIPT), "--model", "tiny"]
+    for audio in files:
+        cmd += ["--files", str(audio)]
+    cmd += [*extra_args]
     return subprocess.run(
         cmd,
         capture_output=True, text=True, cwd=str(APP_DIR),
@@ -52,7 +54,7 @@ def _run(audio: Path, *extra_args: str) -> subprocess.CompletedProcess:
 @pytest.mark.integration
 @pytest.mark.skipif(_no_ffmpeg, reason="ffmpeg not installed")
 @pytest.mark.skipif(_no_venv,   reason="venv not set up — run install.command first")
-class TestTranscribeCLI:
+class TestTranscribeWorkerCLI:
 
     # ── basic smoke ────────────────────────────────────────────────────────────
 
@@ -102,13 +104,13 @@ class TestTranscribeCLI:
     def test_creates_srt_file(self, tmp_path):
         audio = tmp_path / "clip.wav"
         _silent_wav(audio)
-        _run(audio, "--format", "srt")
+        _run(audio, extra_args=("--format", "srt"))
         assert len(list(tmp_path.glob("clip_transcribed_*.srt"))) == 1
 
     def test_srt_content_valid(self, tmp_path):
         audio = tmp_path / "clip.wav"
         _silent_wav(audio)
-        _run(audio, "--format", "srt")
+        _run(audio, extra_args=("--format", "srt"))
         content = next(tmp_path.glob("clip_transcribed_*.srt")).read_text(encoding="utf-8").strip()
         # Either has speech (SRT starts with "1") or is silent
         assert content.startswith("1") or "[No speech detected]" in content
@@ -118,22 +120,41 @@ class TestTranscribeCLI:
     def test_creates_vtt_file(self, tmp_path):
         audio = tmp_path / "clip.wav"
         _silent_wav(audio)
-        _run(audio, "--format", "vtt")
+        _run(audio, extra_args=("--format", "vtt"))
         assert len(list(tmp_path.glob("clip_transcribed_*.vtt"))) == 1
 
     def test_vtt_starts_with_webvtt(self, tmp_path):
         audio = tmp_path / "clip.wav"
         _silent_wav(audio)
-        _run(audio, "--format", "vtt")
+        _run(audio, extra_args=("--format", "vtt"))
         content = next(tmp_path.glob("clip_transcribed_*.vtt")).read_text(encoding="utf-8")
         assert content.startswith("WEBVTT") or "[No speech detected]" in content
+
+    def test_multiple_inputs_use_first_files_folder_without_collision(self, tmp_path):
+        first_dir = tmp_path / "first"
+        second_dir = tmp_path / "second"
+        first_audio = first_dir / "clip.wav"
+        second_audio = second_dir / "clip.wav"
+        first_dir.mkdir()
+        second_dir.mkdir()
+        _silent_wav(first_audio)
+        _silent_wav(second_audio)
+
+        result = _run(first_audio, second_audio)
+
+        assert result.returncode == 0, result.stdout
+        first_outputs = sorted(first_dir.glob("clip_transcribed_*.txt"))
+        second_outputs = sorted(second_dir.glob("clip_transcribed_*.txt"))
+        assert len(first_outputs) == 2
+        assert len(second_outputs) == 0
+        assert first_outputs[0].name != first_outputs[1].name
 
     # ── error handling ─────────────────────────────────────────────────────────
 
     def test_invalid_format_exits_nonzero(self, tmp_path):
         audio = tmp_path / "clip.wav"
         _silent_wav(audio)
-        result = _run(audio, "--format", "docx")
+        result = _run(audio, extra_args=("--format", "docx"))
         assert result.returncode != 0
 
     def test_nonexistent_file_exits_nonzero(self, tmp_path):

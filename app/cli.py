@@ -12,10 +12,7 @@ Files are transcribed in the order given.  Output is written next to each
 source file (or into --output-dir) with a _transcribed_<timestamp> suffix.
 """
 import logging
-import os
-import sys
 import time
-import traceback
 from pathlib import Path
 from typing import List, Optional
 
@@ -32,20 +29,19 @@ from rich.progress import (
 
 from shared import AUDIO_EXTS, MODEL_ORDER, fmt_dur, fmt_timestamp
 from transcribe import (
+    OUTPUT_FORMATS,
     _compute_eta,
+    build_output_path,
     check_ffmpeg,
     choose_model_menu,
-    diarize_audio_local,
     ensure_local_diarizer,
-    format_diarized_segments,
-    format_srt,
-    format_txt_timed,
-    format_vtt,
     get_audio_duration_seconds,
     get_total_audio_duration,
     is_model_cached,
     iter_transcribe_segments,
     load_model_with_progress,
+    render_transcript,
+    write_output_text,
 )
 
 # ── Logging ────────────────────────────────────────────────────────────────────
@@ -119,7 +115,7 @@ def main(
     if model is not None and model not in _MODELS:
         console.print(f"[red]Unknown model '{model}'. Choose from: {', '.join(_MODELS)}[/red]")
         raise typer.Exit(1)
-    if fmt not in {"txt", "srt", "vtt"}:
+    if fmt not in OUTPUT_FORMATS:
         console.print("[red]--format must be one of: txt, srt, vtt[/red]")
         raise typer.Exit(1)
     if task not in {"transcribe", "translate"}:
@@ -242,25 +238,17 @@ def main(
                             eta=_compute_eta(overall_done, overall_total, time.time() - transcription_start))
                 pbar.update(file_task, completed=file_total, eta="0S")
 
-                # Format output
-                if diarizer:
-                    from transcribe import diarize_audio_local as _dar
-                    turns = _dar(diarizer, audio)
-                    text  = format_diarized_segments(segments, turns)
-                elif fmt == "srt":
-                    text = format_srt(segments)
-                elif fmt == "vtt":
-                    text = format_vtt(segments)
-                else:
-                    text = format_txt_timed(segments)
+                text = render_transcript(
+                    segments,
+                    fmt=fmt,
+                    diarizer=diarizer,
+                    audio_path=audio,
+                )
 
                 # Write output
-                ext      = f".{fmt}"
                 dest_dir = out_dir or audio.parent
-                out_path = dest_dir / f"{audio.stem}_transcribed_{run_ts}{ext}"
-                part     = out_path.with_suffix(out_path.suffix + ".part")
-                part.write_text((text or "[No speech detected]") + "\n", encoding="utf-8")
-                part.replace(out_path)
+                out_path = build_output_path(audio, dest_dir, run_ts, fmt)
+                write_output_text(out_path, (text or "[No speech detected]") + "\n")
                 outputs.append(out_path)
                 pbar.print(f"  [green]✓[/green] {out_path}")
 

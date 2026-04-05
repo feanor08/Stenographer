@@ -19,7 +19,7 @@ import time
 import traceback
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 # ── Logging (appends to the same file as the GUI) ─────────────────────────────
 _LOG_DIR  = Path.home() / "Library" / "Logs" / "Stenographer"
@@ -85,6 +85,7 @@ MODEL_LOAD_STATS_FILE = Path(".model_load_times.json")
 MAX_ZIP_BYTES         = 2 * 1024 * 1024 * 1024   # 2 GB guard against zip bombs
 MAX_AUDIO_FILES       = 500                        # rglob file-count safety cap
 MAX_SCAN_DEPTH        = 6                          # rglob depth safety cap
+OUTPUT_FORMATS        = frozenset({"txt", "srt", "vtt"})
 
 MODEL_CHOICES = [
     (name, MODEL_INFO[name]["speed"].title(), MODEL_INFO[name]["accuracy"])
@@ -106,6 +107,44 @@ def log(msg: str) -> None:
 def partial_output_path(output_path: Path) -> Path:
     """Return a sibling .part path for atomic writes."""
     return output_path.with_suffix(output_path.suffix + ".part")
+
+
+def write_output_text(output_path: Path, text: str) -> None:
+    """Write transcript text atomically so interrupted runs never leave partial files."""
+    part_path = partial_output_path(output_path)
+    with open(part_path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+        fh.flush()
+        os.fsync(fh.fileno())
+    part_path.replace(output_path)
+
+
+def build_output_path(
+    audio_path: Path,
+    output_dir: Path,
+    run_ts: str,
+    fmt: str,
+    used_paths: Optional[Set[Path]] = None,
+) -> Path:
+    """
+    Build a unique transcript path inside ``output_dir``.
+
+    Intentional product behavior: in GUI/worker ``--files`` mode every output
+    lands in the first selected file's folder. When multiple inputs share the
+    same stem, add a numeric suffix instead of overwriting earlier results.
+    """
+    ext = f".{fmt}"
+    base_name = f"{audio_path.stem}_transcribed_{run_ts}"
+    candidate = output_dir / f"{base_name}{ext}"
+    suffix = 2
+
+    used_paths = used_paths if used_paths is not None else set()
+    while candidate in used_paths or candidate.exists():
+        candidate = output_dir / f"{base_name}_{suffix}{ext}"
+        suffix += 1
+
+    used_paths.add(candidate)
+    return candidate
 
 
 def cleanup_interrupted_run_artifacts(
@@ -299,10 +338,6 @@ def diarize_audio_local(
     return turns
 
 
-def format_plain_segments(segments: List[Dict[str, object]]) -> str:
-    return "\n".join(str(s["text"]) for s in segments if s.get("text")).strip()
-
-
 def _srt_ts(s: float) -> str:
     h, rem = divmod(max(0, int(s)), 3600)
     m, sec = divmod(rem, 60)
@@ -384,53 +419,23 @@ def format_diarized_segments(
     return "\n".join(lines).strip()
 
 
-def _srt_ts(s: float) -> str:
-    """SRT timestamp: 00:01:23,456"""
-    h, rem = divmod(max(0, int(s)), 3600)
-    m, sec = divmod(rem, 60)
-    ms = int(round((s - int(s)) * 1000))
-    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
-
-
-def _vtt_ts(s: float) -> str:
-    """WebVTT timestamp: 00:01:23.456"""
-    h, rem = divmod(max(0, int(s)), 3600)
-    m, sec = divmod(rem, 60)
-    ms = int(round((s - int(s)) * 1000))
-    return f"{h:02d}:{m:02d}:{sec:02d}.{ms:03d}"
-
-
-def format_srt(segments: List[Dict[str, object]]) -> str:
-    lines: List[str] = []
-    i = 1
-    for seg in segments:
-        if not str(seg.get("text", "")).strip():
-            continue
-        lines.append(
-            f"{i}\n{_srt_ts(float(seg['start']))} --> {_srt_ts(float(seg['end']))}\n"
-            f"{seg['text'].strip()}\n"
-        )
-        i += 1
-    return "\n".join(lines).strip()
-
-
-def format_vtt(segments: List[Dict[str, object]]) -> str:
-    lines = ["WEBVTT", ""]
-    for seg in segments:
-        if not str(seg.get("text", "")).strip():
-            continue
-        lines.append(
-            f"{_vtt_ts(float(seg['start']))} --> {_vtt_ts(float(seg['end']))}\n"
-            f"{seg['text'].strip()}\n"
-        )
-    return "\n".join(lines).strip()
-
-
-def format_txt_timed(segments: List[Dict[str, object]]) -> str:
-    return "\n".join(
-        f"[{fmt_hms(float(s['start']))}] {str(s['text']).strip()}"
-        for s in segments if str(s.get("text", "")).strip()
-    ).strip()
+def render_transcript(
+    segments: List[Dict[str, object]],
+    fmt: str,
+    diarizer=None,
+    audio_path: Optional[Path] = None,
+    num_speakers: Optional[int] = None,
+) -> str:
+    if diarizer is not None:
+        if audio_path is None:
+            raise ValueError("audio_path is required when diarizer is provided")
+        speaker_turns = diarize_audio_local(diarizer, audio_path, num_speakers=num_speakers)
+        return format_diarized_segments(segments, speaker_turns)
+    if fmt == "srt":
+        return format_srt(segments)
+    if fmt == "vtt":
+        return format_vtt(segments)
+    return format_txt_timed(segments)
 
 
 # ── Model loading ──────────────────────────────────────────────────────────────
@@ -828,7 +833,7 @@ def main(
         raise typer.BadParameter(f"--model must be one of: {', '.join(sorted(valid_models))}")
     if num_speakers is not None and num_speakers < 1:
         raise typer.BadParameter("--num-speakers must be a positive integer")
-    if fmt not in {"txt", "srt", "vtt"}:
+    if fmt not in OUTPUT_FORMATS:
         raise typer.BadParameter("--format must be one of: txt, srt, vtt")
 
     tlog.info("PATH=%s", os.environ.get("PATH", ""))
@@ -906,9 +911,10 @@ def main(
     transcription_start   = time.time()
     overall_total         = total_audio_seconds if total_audio_seconds > 0 else float(len(audio_files))
     overall_done          = 0.0
+    used_output_paths: Set[Path] = set()
 
-    # In per-file mode, always write outputs to the first file's folder so
-    # that files from different directories land in one place.
+    # Intentional product behavior: in per-file mode every output goes into the
+    # first selected file's folder, even when later files live elsewhere.
     output_dir = audio_files[0].parent if per_file_mode else None
 
     with Progress(
@@ -983,27 +989,23 @@ def main(
                 pbar.update(overall_task, completed=overall_done, eta=eta_text)
                 pbar.update(file_task, completed=file_total, eta="00:00S")
 
-                if diarization_pipeline is not None:
-                    speaker_turns = diarize_audio_local(
-                        diarization_pipeline, audio, num_speakers=num_speakers
-                    )
-                    text = format_diarized_segments(segments, speaker_turns)
-                elif fmt == "srt":
-                    text = format_srt(segments)
-                elif fmt == "vtt":
-                    text = format_vtt(segments)
-                else:
-                    text = format_txt_timed(segments)
+                text = render_transcript(
+                    segments,
+                    fmt=fmt,
+                    diarizer=diarization_pipeline,
+                    audio_path=audio,
+                    num_speakers=num_speakers,
+                )
 
                 if per_file_mode:
-                    ext = ".srt" if fmt == "srt" else ".vtt" if fmt == "vtt" else ".txt"
-                    out_path = output_dir / f"{audio.stem}_transcribed_{run_ts}{ext}"
-                    part     = out_path.with_suffix(out_path.suffix + ".part")
-                    with open(part, "w", encoding="utf-8") as fh:
-                        fh.write((text if text else "[No speech detected]") + "\n")
-                        fh.flush()
-                        os.fsync(fh.fileno())
-                    part.replace(out_path)
+                    out_path = build_output_path(
+                        audio_path=audio,
+                        output_dir=output_dir,
+                        run_ts=run_ts,
+                        fmt=fmt,
+                        used_paths=used_output_paths,
+                    )
+                    write_output_text(out_path, (text if text else "[No speech detected]") + "\n")
                     print(f"OUTPUT:{out_path}", flush=True)
                 else:
                     output_lines.append(
@@ -1031,12 +1033,7 @@ def main(
 
     # ── Write output (folder/zip mode only — per-file mode writes inline) ──────
     if not per_file_mode:
-        part_path = partial_output_path(output_path)
-        with open(part_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(output_lines).strip() + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        part_path.replace(output_path)
+        write_output_text(output_path, "\n".join(output_lines).strip() + "\n")
         log(f"Done. Wrote transcripts to: {output_path.resolve()}")
     else:
         log("Done.")

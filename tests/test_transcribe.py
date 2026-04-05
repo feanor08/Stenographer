@@ -6,12 +6,15 @@ from pathlib import Path
 import pytest
 
 from transcribe import (
+    build_output_path,
     partial_output_path,
     collect_audio_files,
     check_ffmpeg,
     format_srt,
     format_vtt,
     format_txt_timed,
+    render_transcript,
+    write_output_text,
     MAX_AUDIO_FILES,
     MAX_SCAN_DEPTH,
 )
@@ -34,6 +37,47 @@ class TestPartialOutputPath:
         assert partial_output_path(p).parent == p.parent
 
 
+class TestWriteOutputText:
+    def test_writes_atomically_and_removes_part_file(self, tmp_path):
+        out = tmp_path / "result.txt"
+        write_output_text(out, "hello\n")
+
+        assert out.read_text(encoding="utf-8") == "hello\n"
+        assert not partial_output_path(out).exists()
+
+
+class TestBuildOutputPath:
+    def test_uses_requested_output_dir(self, tmp_path):
+        audio = tmp_path / "nested" / "clip.wav"
+        audio.parent.mkdir()
+        audio.touch()
+        out_dir = tmp_path / "chosen"
+        out_dir.mkdir()
+
+        result = build_output_path(audio, out_dir, "20260405_101010", "txt")
+
+        assert result.parent == out_dir
+        assert result.name == "clip_transcribed_20260405_101010.txt"
+
+    def test_avoids_collisions_when_stems_repeat(self, tmp_path):
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        used_paths = set()
+
+        audio_a = tmp_path / "a" / "clip.wav"
+        audio_b = tmp_path / "b" / "clip.wav"
+        audio_a.parent.mkdir()
+        audio_b.parent.mkdir()
+        audio_a.touch()
+        audio_b.touch()
+
+        first = build_output_path(audio_a, out_dir, "20260405_101010", "txt", used_paths=used_paths)
+        second = build_output_path(audio_b, out_dir, "20260405_101010", "txt", used_paths=used_paths)
+
+        assert first.name == "clip_transcribed_20260405_101010.txt"
+        assert second.name == "clip_transcribed_20260405_101010_2.txt"
+
+
 # ── check_ffmpeg ───────────────────────────────────────────────────────────────
 
 class TestCheckFfmpeg:
@@ -42,7 +86,11 @@ class TestCheckFfmpeg:
             assert check_ffmpeg() is True
 
     def test_returns_false_when_ffmpeg_missing(self):
-        with mock.patch("shutil.which", return_value=None):
+        with (
+            mock.patch("shutil.which", return_value=None),
+            mock.patch("transcribe.os.path.isfile", return_value=False),
+            mock.patch("transcribe.os.access", return_value=False),
+        ):
             assert check_ffmpeg() is False
 
 
@@ -178,3 +226,20 @@ class TestFormatTxtTimed:
 
     def test_empty_segments(self):
         assert format_txt_timed([]) == ""
+
+
+class TestRenderTranscript:
+    def test_renders_plain_text_by_default(self):
+        result = render_transcript(SEGS, fmt="txt")
+        assert result.startswith("[00:00:00]")
+        assert "Hello world" in result
+
+    def test_uses_diarizer_when_provided(self):
+        diarizer = object()
+        with mock.patch("transcribe.diarize_audio_local", return_value=[{"start": 0, "end": 2, "speaker": "speaker_a"}]):
+            result = render_transcript(SEGS[:1], fmt="txt", diarizer=diarizer, audio_path=Path("/tmp/demo.wav"))
+        assert "Person 1: Hello world" in result
+
+    def test_requires_audio_path_for_diarizer(self):
+        with pytest.raises(ValueError):
+            render_transcript(SEGS, fmt="txt", diarizer=object())
