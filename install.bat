@@ -46,7 +46,7 @@ echo Upgrading pip...
 
 echo.
 echo Installing packages (this may take a few minutes)...
-"%VENV%\Scripts\python.exe" -m pip install "click>=8.1.7" "faster-whisper>=1.0.0" "rich>=13.7.0" "typer>=0.12.0"
+"%VENV%\Scripts\python.exe" -m pip install "click>=8.1.7" "faster-whisper>=1.0.0" "rich>=13.7.0" "typer>=0.12.0" "tkinterdnd2>=0.3.0" "pillow"
 if errorlevel 1 (
     echo.
     echo ERROR: Package install failed.

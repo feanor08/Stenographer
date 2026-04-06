@@ -34,8 +34,16 @@ from typing import List, Optional
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
-# ── Logging — writes to ~/Library/Logs/Stenographer/stenographer.log ──────────
-_LOG_DIR  = Path.home() / "Library" / "Logs" / "Stenographer"
+# ── Logging ───────────────────────────────────────────────────────────────────
+def _app_log_dir() -> Path:
+    _s = platform.system()
+    if _s == "Windows":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "Stenographer" / "Logs"
+    if _s == "Darwin":
+        return Path.home() / "Library" / "Logs" / "Stenographer"
+    return Path.home() / ".local" / "share" / "Stenographer" / "logs"
+
+_LOG_DIR  = _app_log_dir()
 _LOG_FILE = _LOG_DIR / "stenographer.log"
 try:
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -59,6 +67,27 @@ def _excepthook(exc_type, exc_value, exc_tb):
 
 sys.excepthook = _excepthook
 
+# ── PATH fixup (macOS .app bundles strip PATH to /usr/bin:/bin) ───────────────
+def _fixup_path() -> None:
+    """
+    Inject well-known binary directories into PATH so that ffmpeg/ffprobe are
+    found regardless of how the app was launched (double-click, Spotlight, etc).
+    On macOS the shell profile is never sourced for .app bundles, so Homebrew's
+    /opt/homebrew/bin (Apple Silicon) and /usr/local/bin (Intel) are missing.
+    """
+    _candidates = [
+        "/opt/homebrew/bin",   # Apple Silicon Homebrew
+        "/usr/local/bin",      # Intel Homebrew / manual installs
+        "/usr/bin",
+    ]
+    current = os.environ.get("PATH", "")
+    additions = [p for p in _candidates if p not in current and os.path.isdir(p)]
+    if additions:
+        os.environ["PATH"] = os.pathsep.join(additions) + os.pathsep + current
+        log.info("PATH extended with: %s", additions)
+
+_fixup_path()
+
 # DnD support — optional; falls back to file-dialog-only if not installed
 try:
     from tkinterdnd2 import TkinterDnD, DND_FILES
@@ -72,6 +101,30 @@ from shared import MODEL_INFO, MODEL_ORDER, fmt_dur, fmt_clock
 import updater
 
 PROJECT_DIR = Path(__file__).parent
+
+
+def _asset_path(filename: str) -> Optional[Path]:
+    """
+    Resolve a file inside the assets/ folder whether running from source or
+    inside a PyInstaller frozen bundle.
+
+    PyInstaller extracts datas into sys._MEIPASS at runtime; for a onedir
+    build (Windows) they also land under <exe_dir>/_internal/.
+    """
+    if getattr(sys, "frozen", False):
+        for base in [
+            Path(getattr(sys, "_MEIPASS", "")),
+            Path(sys.executable).parent / "_internal",
+            Path(sys.executable).parent,
+        ]:
+            p = base / "assets" / filename
+            if p.exists():
+                return p
+    else:
+        p = PROJECT_DIR.parent / "assets" / filename
+        if p.exists():
+            return p
+    return None
 
 
 def bundled_transcribe_path(bundle_dir: Path, system: Optional[str] = None) -> Path:
@@ -196,10 +249,31 @@ def merge_settings(existing: dict, updates: dict) -> dict:
     return merged
 
 
+def _resolve_bin(name: str) -> Optional[str]:
+    """
+    Return the full path for a binary, checking PATH then common Homebrew
+    locations. Returns None if not found anywhere.
+    """
+    found = shutil.which(name)
+    if found:
+        return found
+    for candidate in [
+        f"/opt/homebrew/bin/{name}",
+        f"/usr/local/bin/{name}",
+        f"/usr/bin/{name}",
+    ]:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
 def get_audio_duration(path: str) -> float:
+    ffprobe = _resolve_bin("ffprobe")
+    if not ffprobe:
+        return 0.0
     try:
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
              "-of", "default=noprint_wrappers=1:nokey=1", path],
             capture_output=True, text=True, timeout=15,
             encoding="utf-8", errors="replace",
@@ -392,21 +466,8 @@ class TranscriberApp:
         ).pack(side="left", padx=(8, 0))
 
         # ── FFmpeg warning banner (shown immediately if ffmpeg is missing) ────
-        def _which_bundled(name: str, extras: list) -> bool:
-            if shutil.which(name):
-                return True
-            return any(os.path.isfile(p) and os.access(p, os.X_OK) for p in extras)
-
-        _ffmpeg_missing = not _which_bundled("ffmpeg", [
-            "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg",
-        ])
+        _ffmpeg_missing = _resolve_bin("ffmpeg") is None
         if _ffmpeg_missing:
-            has_brew   = _which_bundled("brew", [
-                "/opt/homebrew/bin/brew", "/usr/local/bin/brew",
-            ])
-            brew_cmd   = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-            ffmpeg_cmd = "brew install ffmpeg"
-
             ffmpeg_banner = tk.Frame(self.root, bg=C["warn_bg"])
             ffmpeg_banner.pack(fill="x")
             inner = tk.Frame(ffmpeg_banner, bg=C["warn_bg"], padx=24, pady=12)
@@ -445,20 +506,32 @@ class TranscriberApp:
                 self._btn(row, "Copy", _copy,
                           font=(FONT, 9), pady=4).pack(side="left")
 
-            if not has_brew:
-                tk.Label(inner, text="Step 1 — Install Homebrew (paste into Terminal):",
+            if _sys == "Windows":
+                tk.Label(inner, text="Option 1 — Install via winget (run in Command Prompt or PowerShell):",
                          bg=C["warn_bg"], fg=C["warn_fg"],
                          font=(FONT, 9, "bold")).pack(anchor="w")
-                _cmd_row(inner, "", brew_cmd)
-                tk.Label(inner, text="Step 2 — Install FFmpeg:",
+                _cmd_row(inner, "", "winget install Gyan.FFmpeg")
+                tk.Label(inner, text="Option 2 — Download from ffmpeg.org/download.html and add the bin\\ folder to PATH.",
                          bg=C["warn_bg"], fg=C["warn_fg"],
-                         font=(FONT, 9, "bold")).pack(anchor="w", pady=(6, 0))
-                _cmd_row(inner, "", ffmpeg_cmd)
+                         font=(FONT, 9), justify="left").pack(anchor="w", pady=(6, 0))
             else:
-                tk.Label(inner, text="Run in Terminal:",
-                         bg=C["warn_bg"], fg=C["warn_fg"],
-                         font=(FONT, 9, "bold")).pack(anchor="w")
-                _cmd_row(inner, "", ffmpeg_cmd)
+                has_brew = _resolve_bin("brew") is not None
+                brew_cmd   = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+                ffmpeg_cmd = "brew install ffmpeg"
+                if not has_brew:
+                    tk.Label(inner, text="Step 1 — Install Homebrew (paste into Terminal):",
+                             bg=C["warn_bg"], fg=C["warn_fg"],
+                             font=(FONT, 9, "bold")).pack(anchor="w")
+                    _cmd_row(inner, "", brew_cmd)
+                    tk.Label(inner, text="Step 2 — Install FFmpeg:",
+                             bg=C["warn_bg"], fg=C["warn_fg"],
+                             font=(FONT, 9, "bold")).pack(anchor="w", pady=(6, 0))
+                    _cmd_row(inner, "", ffmpeg_cmd)
+                else:
+                    tk.Label(inner, text="Run in Terminal:",
+                             bg=C["warn_bg"], fg=C["warn_fg"],
+                             font=(FONT, 9, "bold")).pack(anchor="w")
+                    _cmd_row(inner, "", ffmpeg_cmd)
 
         # ── File picker ────────────────────────────────────────────────────────
         file_section = self._card(self.root, title="Audio Files")
@@ -1273,6 +1346,28 @@ def main():
     try:
         root = TkinterDnD.Tk() if _DND_AVAILABLE else tk.Tk()
         log.info("Root window created  TkdndVersion=%s", getattr(root, "TkdndVersion", "n/a"))
+
+        # ── Window icon ────────────────────────────────────────────────────────
+        # On Windows use .ico (more reliable with Tk's iconbitmap).
+        # On macOS/Linux use PNG via iconphoto.
+        if platform.system() == "Windows":
+            ico = _asset_path("scroll-icon.ico")
+            if ico:
+                try:
+                    root.iconbitmap(str(ico))
+                    log.info("Window icon set from %s", ico)
+                except Exception as _e:
+                    log.warning("iconbitmap failed: %s", _e)
+        else:
+            png = _asset_path("icon.png")
+            if png:
+                try:
+                    _icon_img = tk.PhotoImage(file=str(png))
+                    root.iconphoto(True, _icon_img)
+                    log.info("Window icon set from %s", png)
+                except Exception as _e:
+                    log.warning("iconphoto failed: %s", _e)
+
         TranscriberApp(root)
         log.info("Entering mainloop")
         root.mainloop()

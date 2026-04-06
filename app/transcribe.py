@@ -10,6 +10,7 @@ import json
 import logging
 import math
 import os
+import platform
 import queue
 import shutil
 import subprocess
@@ -22,7 +23,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 # ── Logging (appends to the same file as the GUI) ─────────────────────────────
-_LOG_DIR  = Path.home() / "Library" / "Logs" / "Stenographer"
+def _app_log_dir() -> Path:
+    _s = platform.system()
+    if _s == "Windows":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "Stenographer" / "Logs"
+    if _s == "Darwin":
+        return Path.home() / "Library" / "Logs" / "Stenographer"
+    return Path.home() / ".local" / "share" / "Stenographer" / "logs"
+
+_LOG_DIR  = _app_log_dir()
 _LOG_FILE = _LOG_DIR / "stenographer.log"
 try:
     _LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -81,7 +90,15 @@ else:
     _FASTER_WHISPER_ERR = ""
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-MODEL_LOAD_STATS_FILE = Path(".model_load_times.json")
+def _app_data_dir() -> Path:
+    _s = platform.system()
+    if _s == "Windows":
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "Stenographer"
+    if _s == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "Stenographer"
+    return Path.home() / ".local" / "share" / "Stenographer"
+
+MODEL_LOAD_STATS_FILE = _app_data_dir() / ".model_load_times.json"
 MAX_ZIP_BYTES         = 2 * 1024 * 1024 * 1024   # 2 GB guard against zip bombs
 MAX_AUDIO_FILES       = 500                        # rglob file-count safety cap
 MAX_SCAN_DEPTH        = 6                          # rglob depth safety cap
@@ -178,7 +195,7 @@ def check_ffmpeg() -> bool:
     ]:
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             # Add its directory to PATH so all subsequent subprocess calls find it too.
-            os.environ["PATH"] = os.path.dirname(candidate) + ":" + os.environ.get("PATH", "")
+            os.environ["PATH"] = os.path.dirname(candidate) + os.pathsep + os.environ.get("PATH", "")
             tlog.info("ffmpeg found at %s (injected into PATH)", candidate)
             return True
     return False
@@ -545,6 +562,7 @@ def save_model_stats(stats: dict) -> None:
     stats file just falls back to the hard-coded defaults in MODEL_INFO.
     """
     try:
+        MODEL_LOAD_STATS_FILE.parent.mkdir(parents=True, exist_ok=True)
         tmp = MODEL_LOAD_STATS_FILE.with_suffix(".json.tmp")
         with open(tmp, "w", encoding="utf-8") as f:
             _flock(f, exclusive=True)
