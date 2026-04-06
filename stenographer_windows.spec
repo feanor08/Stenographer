@@ -23,11 +23,19 @@ _hidden = [
 _tkdnd_datas = collect_data_files("tkinterdnd2")
 _fw_datas = collect_data_files("faster_whisper")
 
+# Bundle app icon assets so the GUI can load them at runtime.
+_icon_datas = [
+    (f, "assets") for f in [
+        "assets/icon.png",
+        "assets/scroll-icon.ico",
+    ] if os.path.exists(f)
+]
+
 a_gui = Analysis(
     ["app/one_click_ui.py"],
     pathex=["app"],
     binaries=[],
-    datas=_tkdnd_datas + _fw_datas,
+    datas=_tkdnd_datas + _fw_datas + _icon_datas,
     hiddenimports=_hidden,
     hookspath=[],
     runtime_hooks=[],

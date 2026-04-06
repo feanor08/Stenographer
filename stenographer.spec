@@ -25,12 +25,21 @@ _tkdnd_datas = collect_data_files("tkinterdnd2")
 # faster-whisper bundles a Silero VAD ONNX model that PyInstaller misses.
 _fw_datas = collect_data_files("faster_whisper")
 
+# Bundle app icon assets so the GUI can load them at runtime.
+_icon_datas = [
+    (f, "assets") for f in [
+        "assets/icon.png",
+        "assets/icon.icns",
+        "assets/scroll-icon.ico",
+    ] if os.path.exists(f)
+]
+
 # ── GUI ────────────────────────────────────────────────────────────────────────
 a_gui = Analysis(
     ["app/one_click_ui.py"],
     pathex=["app"],
     binaries=[],
-    datas=_tkdnd_datas + _fw_datas,
+    datas=_tkdnd_datas + _fw_datas + _icon_datas,
     hiddenimports=_hidden,
     hookspath=[],
     runtime_hooks=[],
@@ -108,8 +117,8 @@ app = BUNDLE(
     icon="assets/icon.icns" if __import__("os").path.exists("assets/icon.icns") else None,
     bundle_identifier="com.feanor08.stenographer",
     info_plist={
-        "CFBundleShortVersionString": "1.0.8",
-        "CFBundleVersion":            "1.0.8",
+        "CFBundleShortVersionString": "1.1.0",
+        "CFBundleVersion":            "1.1.0",
         "NSHighResolutionCapable":    True,
         "NSMicrophoneUsageDescription": "Stenographer does not use the microphone.",
         "LSMinimumSystemVersion":     "11.0",
